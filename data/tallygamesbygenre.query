@@ -1,0 +1,1 @@
+select genre, count(*) as occurance from game group by genre order by occurance desc;

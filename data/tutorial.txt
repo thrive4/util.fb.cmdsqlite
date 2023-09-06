@@ -1,0 +1,46 @@
+A quick tutorial illustrating basic usage of cmdsqlite.exe
+
+| create a game.db
+
+* step one cmdsqlite.exe data\game.csv > data\game.sql
+  this creates a game.sql file in the subfolder \data
+  which can be used to create a database game.db
+
+* step two cmdsqlite.exe data\game.db data\game.sql
+  creates the game.db in the subfolder \data
+
+| get structure of game.db
+
+* step one cmdsqlite.exe data\game.db showtables
+  displays table(s) in database in this case 'game'
+
+* step two cmdsqlite.exe data\game.db showfields game
+  displays fieldnames in table 'game'
+
+| query and export results from game.db
+
+* step one cmdsqlite.exe data\game.db "select name, genre from game where name like 'a%'"
+  outputs in field / value the results of the query
+  in this case name and genre where name begins with a
+
+* step one B cmdsqlite.exe data\game.db "select name, genre from game where name like 'a%'" csv
+  outputs in csv format the results of the query
+  in this case name and genre where name begins with a
+
+* step one C cmdsqlite.exe data\game.db "select name, genre from game where name like 'a%'" json
+  outputs in json format the the results of the query
+  in this case name and genre where name begins with a
+
+* step one D cmdsqlite.exe data\game.db "select name, genre from game where name like 'a%'" xml
+  outputs in xml the results of the query
+  in this case name and genre where name begins with a
+
+* step one E cmdsqlite.exe data\game.db "select name, genre from game where name like 'a%'" html
+  outputs a html table, using the templates folder, via the results of the query
+  in this case name and genre where name begins with a
+
+  * step one F cmdsqlite.exe data\game.db "select name, genre from game where name like 'a%' limit 100" html > game.html
+  outputs a html table, using the templates folder, with the results of the query
+  in this case name and genre where name begins with a and limits the
+  the number of records to 100 plus the result is redirected to the file game.html
+

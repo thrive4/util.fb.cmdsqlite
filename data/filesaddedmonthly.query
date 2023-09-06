@@ -1,0 +1,5 @@
+select strftime('%m', fdate) as month,
+       count(file) as files_added, fsize
+ from text
+ where fdate > date('now','-2 year')
+ group by strftime('%m', fdate);
