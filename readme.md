@@ -1,29 +1,29 @@
 ## cmdsqlite
 basic import / export util written in freebasic with sqlite3\
 supported file types or extensions:\
-.csv, .db, .json, .html, .sql, .xml
+.csv, .db, .json, .html, .sql, .xml\
 \
 Allows for export of data in sqlite database via sql query,\
 or a folder plus filespec, to csv, json, html(table), sql and xml\
-and import of csv, json and xml via conversion to sql.
+and import of csv, json and xml via conversion to sql.\
 \
 Special support for .mp3 or .jpg this will extract the\
 tag info and or create media links in the generated html table\
 plus checkfile which verifies if file excists according to path\
-and file in specified field.
+and file in specified field.\
 \
 See included help, or tutorial.txt in data folder, for more details\
 cmdsqlite.exe /?  (or -h, -help, etc)\
-Note: <folder> <filespec> folders are scanned recursively for filespec
+Note: [folder] [filespec] folders are scanned recursively for filespec
 ## usage
 - basic\
-cmdsqlite.exe <dbname> <query>\
+cmdsqlite.exe [dbname] [query]\
 example: cmdsqlite.exe game.db "select name from game where name like 'a%'"\
-cmdsqlite.exe <folder> <filespec> <exporttype>\
+cmdsqlite.exe [folder] [filespec] [exporttype]\
 example: cmdsqlite.exe g:\data\images\classic *.jpg csv
 
 - verfiy if file excists according to path and file in specified field\
-<dbname> <query> checkfile <field name>\
+[dbname] [query] checkfile [field name]\
 checkfile returns -1 if the file exists, otherwise zero 0
 
 - export to html(table)\
@@ -45,16 +45,16 @@ select json_object('name', name, 'developer', developer) from game" json
 cmdsqlite.exe game.db "select name, developer from game" csv
 
 - import via sql of csv, json or xml\
-cmdsqlite.exe <filename>.csv\
-creates a <filename>.sql\
+cmdsqlite.exe [filename].csv\
+creates a [filename].sql\
 can be verified and the imported to sqlite database via:\
-cmdsqlite.exe <dbname> <.sql>
+cmdsqlite.exe [dbname] [.sql]
 
 - basic info database and tables\
-cmdsqlite.exe <dbname> showtables\
-displays table names contained in <dbname>\
-cmdsqlite.exe <dbname> showfields <tablename>\
-displays fieldnames contained in <tablename>
+cmdsqlite.exe [dbname] showtables\
+displays table names contained in [dbname]\
+cmdsqlite.exe [dbname] showfields [tablename]\
+displays fieldnames contained in [tablename]
 
 ## configuration
 options via \conf\conf.ini\
