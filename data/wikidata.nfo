@@ -1,0 +1,23 @@
+https://query.wikidata.org/#%23get%20a%20set%20of%20movies%20with%20imdb%20id%20released%20in%20the%20us%20chronologicaly%0A%23%20and%20create%20url%20works%20so%20so%0A%23defaultView%3ATable%0APREFIX%20q%3A%20%3Chttp%3A%2F%2Fwww.wikidata.org%2Fprop%2Fqualifier%2F%3E%0APREFIX%20s%3A%20%3Chttp%3A%2F%2Fwww.wikidata.org%2Fprop%2Fstatement%2F%3E%0ASELECT%20distinct%20%3Fitem%20%20%3Ftitle%20%3Fgenre%20%3Fpublicationdate%20%3Fimdb%20%3Fimdbs%0AWHERE%20%7B%0A%20%20%3Fitem%20wdt%3AP31%20wd%3AQ11424%3B%0A%20%20%20%20%20%20%20%20rdfs%3Alabel%20%3Ftitle%3B%0A%20%20%20%20%20%20%20%20wdt%3AP136%20%3Figenre%3B%0A%20%20%20%20%20%20%20%20p%3AP577%20%3Fplaceofpublication.%0A%20%20%3Fplaceofpublication%20q%3AP291%20wd%3AQ30.%0A%20%20%3Fplaceofpublication%20s%3AP577%20%3Fpublicationdate%3B%0A%20%20filter%20%28%20lang%28%3Ftitle%29%20%3D%20%22en%22%29%0A%20%20%3Figenre%20rdfs%3Alabel%20%3Fgenre.%0A%20%20FILTER%28LANG%28%3Fgenre%29%20%3D%20%22en%22%29.%0A%20%20OPTIONAL%20%7B%3Fitem%20wdt%3AP345%20%3Fimdb.%20%7D%0A%20%20bind%28CONCAT%28%22https%3A%2F%2Fwww.imdb.com%2Ftitle%2F%22%2C%20%3Fimdb%2C%20%22%2F%22%20%29%20as%20%3Fimdbs%29%0A%7D%0AORDER%20BY%20%3Fpublicationdate%0Alimit%20100%0A
+
+#get a set of movies with imdb id released in the us chronologicaly
+#with genre and create url works so so
+#defaultView:Table
+PREFIX q: <http://www.wikidata.org/prop/qualifier/>
+PREFIX s: <http://www.wikidata.org/prop/statement/>
+SELECT distinct ?item  ?title ?genre ?publicationdate ?imdb ?imdbs
+WHERE {
+  ?item wdt:P31 wd:Q11424;
+        rdfs:label ?title;
+        wdt:P136 ?igenre;
+        p:P577 ?placeofpublication.
+  ?placeofpublication q:P291 wd:Q30.
+  ?placeofpublication s:P577 ?publicationdate;
+  filter ( lang(?title) = "en")
+  ?igenre rdfs:label ?genre.
+  FILTER(LANG(?genre) = "en").
+  OPTIONAL {?item wdt:P345 ?imdb. }
+  bind(CONCAT("https://www.imdb.com/title/", ?imdb, "/" ) as ?imdbs)
+}
+ORDER BY ?publicationdate
+limit 100
