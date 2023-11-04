@@ -29,7 +29,6 @@ checkfile returns -1 if the file exists, otherwise zero 0
 - export to html(table)\
 cmdsqlite.exe game.db "select name, developer from game" html\
 exports query result to an html sortable table (using templates)\
-! more then 120 records can cause slow downs in browser when sorting
 
 - export to html(table) via folder\
 cmdsqlite.exe g:\data\mp3\classic *.mp3 html\

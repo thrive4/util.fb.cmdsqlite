@@ -1,0 +1,31 @@
+update v1.1 02/11/2023
+- added export meta info mp3 to other fileformats
+  csv, json, sql and xml
+- added export meta info mp3 album to html
+- added filter table javascript
+  courtesy to: https://www.w3schools.com/howto/howto_js_filter_table.asp
+  partially implemented filter on specific field
+- replaced sort routine for tables javascript
+  significant improvements in speed and number
+  of rows that can be handeled by browser
+  many thanks to tofsjonas
+  see: https://github.com/tofsjonas/sortable
+- modified main.css less cluterd html table and other style tweaks
+- fixed json export double first fieldname and value
+  with datasource as folder plus filespec
+- improved xml export sanitize values ampersand, etc  
+- improved csv import some what better handling
+  of ".." (doubleqoute enclosed) fields
+  remove possible trailing comma at end of record
+  added rather strict cleaning of header todo needs more work....
+- fixed deselect issue audio playing button html table
+- fixed log creation (missing message)
+- fixed appname made truncation .exe optional
+- fixed checkpath did not set correct path after
+  function exit when path is correct
+- corrected isalphanumeric function
+- misc fixes to getmp3cover
+- edits to help.ini all languages
+- added initial example with wikidata (sparql) as datasouce
+  see wikidata.nfo (csv | json) xml is... problematic ...
+public release v1.0 06/09/2023

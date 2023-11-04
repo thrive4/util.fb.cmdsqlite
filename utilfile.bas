@@ -1,10 +1,8 @@
 ' used for app launcher
 #include once "crt/process.bi"
-
 ' dir function and provides constants to use for the attrib_mask parameter
 #include once "vbcompat.bi"
 #include once "dir.bi"
-
 ' disable filename globbing otherwise g:\* list files
 ' when using command how ever conflicts with dir()
 ' also odd this is used for 64bits but works with 32bits
@@ -20,11 +18,12 @@ dim shared usecons    as string
 dim shared exeversion as string
 dim shared taginfo(1 to 5) as string
 
-
 ' note command(0) can arbitraly add the path so strip it
 appname = mid(command(0), instrrev(command(0), "\") + 1)
 ' without file extension
-appname = left(appname, len(appname) - 4)
+if instr(appname, ".exe") > 0 then
+    appname = left(appname, len(appname) - 4)
+end if
 ' options logtype verbose, full
 logtype = "verbose"
 ' options usecons true, false
@@ -85,14 +84,10 @@ Function logentry(entrytype As String, logmsg As String) As Boolean
     logfile = exepath + "\" + appname + ".log"
     if FileExists(logfile) = false then
         Open logfile For output As #f
-        logmsg = logfile + " created"
-        print #f, format(now, "dd/mm/yyyy") + " - " + time + "|" + "notice" + "|" + appname + "|" + logmsg
-        logmsg = "version " + exeversion
-        print #f, format(now, "dd/mm/yyyy") + " - " + time + "|" + "notice" + "|" + appname + "|" + logmsg
-        logmsg = "platform " + os
-        print #f, format(now, "dd/mm/yyyy") + " - " + time + "|" + "notice" + "|" + appname + "|" + logmsg
+        print #f, format(now, "dd/mm/yyyy") + " - " + time + "|" + "notice" + "|" + appname + "|" + logfile + " created"
+        print #f, format(now, "dd/mm/yyyy") + " - " + time + "|" + "notice" + "|" + appname + "|" + "version " + exeversion
+        print #f, format(now, "dd/mm/yyyy") + " - " + time + "|" + "notice" + "|" + appname + "|" + "platform " + os
         close #f
-        exit function
     end if
 
     if entrytype = "warning" and logtype = "verbose" then
@@ -227,7 +222,7 @@ Function newfile(filename As String) As boolean
 End Function
 
 ' create a temp file
-Function tmpfile(filename As String) As boolean
+Function tmp2file(filename As String) As boolean
     Dim f As integer
 
     if FileExists(filename) = true then
@@ -300,6 +295,7 @@ Function checkpath(chkpath As String) As boolean
         return false
     end if
 
+    chdir(dummy)
     return true
 
 End Function
@@ -397,6 +393,67 @@ end function
 ' file type specific functions
 ' ______________________________________________________________________________'
 
+Dim Shared As String B64
+B64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ" & _
+"abcdefghijklmnopqrstuvwxyz" & _
+"0123456789+/"
+
+#define E0(v1) v1 Shr 2
+#define E1(v1, v2) ((v1 And 3) Shl 4) + (v2 Shr 4)
+#define E2(v2, v3) ((v2 And &H0F) Shl 2) + (v3 Shr 6)
+#define E3(v3) (v3 And &H3F)
+
+' via https://rosettacode.org/wiki/Base64_encode_data?section=1#FreeBASIC
+Function base64encode(S As String) As String
+    Dim As Integer j, k, l = Len(S)
+    Dim As String  mE
+    If l = 0 Then Return mE
+    
+    mE = String(((l+2)\3)*4,"=")
+    For j = 0 To l - ((l Mod 3)+1) Step 3
+        mE[k+0]=B64[e0(S[j+0])]
+        mE[k+1]=B64[e1(S[j+0],S[j+1])]
+        mE[k+2]=B64[e2(S[j+1],S[j+2])]
+        mE[k+3]=B64[e3(S[j+2])]:k+=4
+    Next j
+    If (l Mod 3) = 2 Then
+        mE[k+0]=B64[e0(S[j+0])]
+        mE[k+1]=B64[e1(S[j+0],S[j+1])]
+        mE[k+2]=B64[e2(S[j+1],S[j+2])]
+        mE[k+3]=61
+    Elseif (l Mod 3) = 1 Then
+        mE[k+0]=B64[e0(S[j+0])]
+        mE[k+1]=B64[e1(S[j+0],S[j+1])]
+        mE[k+2]=61
+        mE[k+3]=61
+    End If
+    Return mE
+End Function
+
+Function MIMEDecode(s As String ) As Integer
+    If Len(s) Then
+        MIMEdecode = Instr(B64,s) - 1
+    Else
+        MIMEdecode = -1
+    End If
+End Function
+
+' via https://rosettacode.org/wiki/Base64_decode_data#FreeBASIC
+Function base64decode(s As String) As String
+    Dim As Integer w1, w2, w3, w4
+    Dim As String  mD
+    For n As Integer = 1 To Len(s) Step 4
+        w1 = MIMEdecode(Mid(s,n+0,1))
+        w2 = MIMEdecode(Mid(s,n+1,1))
+        w3 = MIMEdecode(Mid(s,n+2,1))
+        w4 = MIMEdecode(Mid(s,n+3,1))
+        If w2 >-1 Then mD+= Chr(((w1* 4 + Int(w2/16)) And 255))
+        If w3 >-1 Then mD+= Chr(((w2*16 + Int(w3/ 4)) And 255))
+        If w4 >-1 Then mD+= Chr(((w3*64 + w4        ) And 255))
+    Next n
+    Return mD
+End Function
+
 ' cheap csv to sql export
 Function csv2sql(filename as string, tbname as string = "") As boolean
 
@@ -407,6 +464,13 @@ Function csv2sql(filename as string, tbname as string = "") As boolean
     dim dbchk   as boolean = false
     Dim text    As String
     dim dummy   as string = ""
+    ' used for "... , ..." structure
+    dim i       as integer = 1
+    dim b       as integer = 0
+    dim e       as integer = 0
+    dim p       as string  = ""
+    dim temp    as string
+
     ' filter out ext
     tbname = left(filename, instrrev(filename, ".") - 1)
     ' filter out preceding path if present
@@ -426,6 +490,9 @@ Function csv2sql(filename as string, tbname as string = "") As boolean
         ' create table defintion
         if cnt = 0 then
             ReDim As String ordinance(0)
+            ' use strict cleaining for now
+            text = replace(text, "'", "")
+            text = replace(text, chr$(34), "")
             explode(text, ",", ordinance())
             For x As Integer = 1 To UBound(ordinance)
                 if x <> UBound(ordinance) then
@@ -437,64 +504,63 @@ Function csv2sql(filename as string, tbname as string = "") As boolean
             fieldnr = UBound(ordinance)
             print ");"
         else
-        ' create inserts    
+            ' create inserts    
             dummy = ""
             ReDim As String ordinance(0)
+            ' work around data "... , ..." structure still if-y...
+            if instr(text, chr$(34)) > 0 then
+                temp = text
+                do
+                    p = mid(text,i,1)
+                    if p = chr$(34) and b > 0 and e = 0 then
+                        e = i
+                        dummy = mid(text, b, e - (b - 1))
+                        dummy = replace(dummy, ",", "|\|")
+                        temp = replace(temp,  mid(text, b, e - (b - 1)) , dummy)
+                        dummy = ""
+                        b = 0
+                        p = ""
+                    end if
+                    if p = chr$(34) and b = 0 then
+                        b = i
+                        e = 0
+                        p = ""
+                    end if
+                    i += 1
+                loop until i > len(text)
+                text = temp
+                ' reset workaround
+                b = 0 : e = 0 : i = 0 : p = "" : dummy = ""
+            end if
+            ' remove trailing comma at end of record
+            if mid(text, len(text) - 1) = chr$(34) + "," then
+                text = mid(text, 1, len(text) - 1)
+            end if
             explode(text, ",", ordinance())
             if UBound(ordinance) <> fieldnr then
-                if instr(text, chr$(34)) > 0 then
-                    ' nop could be "..., ..." construct
-                else
                     logentry("fatal", "error unequal amount of fields at line " & cnt + 1 & " " + text)
-                end if
             end if
             For x As Integer = 1 To UBound(ordinance)
-                ' check validty data "... , ..." structure
-                ' todo improve very funky code
-                if instr(ordinance(x), chr$(34)) > 0 then
-                    dim dummy2 as integer = 0
-                    for y as integer = x to UBound(ordinance)   
-                    ' check validty data 
-                    if instr(trim(ordinance(x)), "'") > 0 then
-                        logentry("warning", "found unescaped ' modified with '' at line " & cnt + 1 & " " + text)
-                    end if    
-                    if instr(ordinance(y), chr$(34)) > 0 then
-                        dummy2 = y
-                        exit for
-                    end if
-                    next
-                    if x + 1 <> UBound(ordinance) then
-                        dummy += ordinance(x) + "," + ordinance(x + 1) + ","
-                    else
-                        dummy += ordinance(x) + "," + ordinance(x + 1)
-                    END IF
-                    x += 1
-                    if dummy2 > 3 then
-                        if instr(len(ordinance(dummy2)), ordinance(dummy2), chr$(34)) > 0 then 
-                            dummy = mid(dummy, 1, len(dummy) - len(ordinance(dummy2+1)) -1) + "'" + ordinance(dummy2+1) + "',"
-                        end if
-                    end if
-                    logentry("warning", "found 'double quote comma double quote' in field concatenated two fields at line " & cnt + 1 & " " + text)
+                ' restore data "... , ..." structure
+                ordinance(x) = replace(trim(ordinance(x)), chr$(34), "")
+                ordinance(x) = replace(trim(ordinance(x)), "|\|", ",")
+                ' check validty data 
+                if instr(trim(ordinance(x)), "'") > 0 then
+                    logentry("warning", "found unescaped ' modified with '' at line " & cnt + 1 & " " + text)
+                end if    
+                if x <> UBound(ordinance) then
+                    dummy += "'" + replace(trim(ordinance(x)), "'", "''") + "',"
                 else
-                    ' check validty data 
-                    if instr(trim(ordinance(x)), "'") > 0 then
-                        logentry("warning", "found unescaped ' modified with '' at line " & cnt + 1 & " " + text)
-                    end if    
-                    if x <> UBound(ordinance) then
-                        dummy += "'" + replace(trim(ordinance(x)), "'", "''") + "',"
-                    else
-                        dummy += "'" + replace(trim(ordinance(x)), "'", "''") + "'"
-                    end if
+                    dummy += "'" + replace(trim(ordinance(x)), "'", "''") + "'"
                 end if
             Next
             Print "insert into '" + tbname + "' values (" + dummy + ");" 
         end if
         cnt += 1
-
     Loop
     print "commit;"
-
     logentry("notice", "exported csv " + filename + " to sql with tablename " + tbname + " #recs " & cnt)
+
     return true
     
 end function
@@ -503,6 +569,7 @@ end function
 Function json2sql(filename as string, tbname as string = "") As boolean
 
     Dim f       As integer
+    dim g       as integer
     Dim cnt     As integer = 0
     Dim fieldnr As integer = 0
     dim chk     as boolean = false
@@ -518,8 +585,30 @@ Function json2sql(filename as string, tbname as string = "") As boolean
         logentry("fatal", "file not found or missing..'" & filename & "'")
     end if
 
+
     f = FreeFile
     Open filename For input As #f
+
+    ' handle one liner json
+    Do Until EOF( f )
+        Line Input #f, text
+        cnt +=1
+    loop
+    if cnt = 1 then
+        g = freefile
+        open exepath + "\temp.json" for output as #g
+            text = replace(text, "[", "[" + chr$(13) + chr$(10))
+            text = replace(text, "},", "}," + chr$(13) + chr$(10))
+            text = replace(text, "]", chr$(13) + chr$(10) + "]" + chr$(13) + chr$(10))
+            print #g, text
+        close(g)
+        logentry ("notice", "converted one line json " + filename)
+        filename = exepath + "\temp.json"
+    end if
+    close(f)
+    Open filename For input As #f
+    cnt = 0
+
     print "begin transaction;"
     print "create table if not exists '" + tbname + "' ("
 
@@ -537,9 +626,9 @@ Function json2sql(filename as string, tbname as string = "") As boolean
             For x As Integer = 1 To UBound(ordinance)
                 dummy = lcase(mid(trim(ordinance(x)), 3, instr(trim(ordinance(x)), chr$(34) + ":" + chr$(34)) - 3))
                 if x <> UBound(ordinance) then
-                    Print "'" + dummy + "'" + space(20 - len(dummy)) + tbname + "," 
+                    Print "'" + dummy + "'" + space(20 - len(dummy)) + "text" + "," 
                 else
-                    Print "'" + dummy + "'" + space(20 - len(dummy)) + tbname 
+                    Print "'" + dummy + "'" + space(20 - len(dummy)) + "text" 
                 end if
             Next
             fieldnr = UBound(ordinance)
@@ -570,6 +659,7 @@ Function json2sql(filename as string, tbname as string = "") As boolean
             For x As Integer = 1 To UBound(ordinance)
                 ' unescape double quote if needed
                 ordinance(x) = replace(ordinance(x), "\" + chr$(34), chr$(34))
+                ordinance(x) = replace(ordinance(x), "'", "''")                        
                 dummy += mid(trim(ordinance(x)), instr(trim(ordinance(x)), chr$(34) + ":" + chr$(34)) + 3)
                 if x <> UBound(ordinance) then
                         dummy += "','"
@@ -592,6 +682,8 @@ Function json2sql(filename as string, tbname as string = "") As boolean
     Loop
     print "commit;"
 
+    close(f)
+    delfile(exepath + "\temp.json")
     logentry("notice", "exported json " + filename + " to sql with tablename " + tbname + " #recs " & cnt)
     return true
     
@@ -610,6 +702,7 @@ Function xml2sql(filename as string, tbname as string = "", element as string = 
     dim fvalue  as string    
     dim dummy   as string = ""
     dim dummy2  as string = ""
+    dim dbname  as string = ""
     ' filter out ext
     tbname = left(filename, instrrev(filename, ".") - 1)
     ' filter out preceding path if present
@@ -624,19 +717,18 @@ Function xml2sql(filename as string, tbname as string = "", element as string = 
     print "begin transaction;"
     'print "create table if not exists '" + tbname + "' ("
 
-
     Do Until EOF( f )
        Line Input #f, text
         select case true
             ' get node meta, version etc
             case instr(text, "<?") > 0
-'                print "meta   ";text
+            ' print "meta   ";text
             ' get node dbname
             case instr(text, "<") > 0 and instr(text, "/") = 0 and dbchk = false
                 if instr(text, " ") > 0 then
-                '    print "dbname ";mid(text, 2, instr(trim(text), " ") - 2)
+                    dbname = mid(text, 2, instr(trim(text), " ") - 2)
                 else
-                '    print "dbname ";mid(trim(text), 2, len(trim(text)) - 2)
+                    dbname = mid(trim(text), 2, len(trim(text)) - 2)
                 end if
                 dbchk = true
             ' get node tbname or record
@@ -652,7 +744,7 @@ Function xml2sql(filename as string, tbname as string = "", element as string = 
             ' todo cleanup loops too much truncation is needed
             case else
                 if element = "" then
-                    if instr(text, "</" + tbname + ">") = 0 then
+                    if instr(text, "</" + tbname + ">") = 0 and text <> "</" + dbname + ">" then
                         fname = mid(text, instr(text, "<") + 1, instr(trim(text), ">") - 2)
                         ' create table defintion
                         if tbchk = false then
@@ -661,6 +753,11 @@ Function xml2sql(filename as string, tbname as string = "", element as string = 
                         ' create inserts
                         fvalue = mid(text, instr(text, ">") + 1, instr(trim(text), "</") - (len(fname) + 3))
                         if fvalue = "" then fvalue = "null" end if
+                        ' reverse xml sanitazion
+                        fvalue = replace(fvalue, " &amp; ", " & ")
+                        fvalue = replace(fvalue, "&gt;", ">")
+                        fvalue = replace(fvalue, "&lt;", "<")
+                        fvalue = replace(fvalue, "'", "''")
                         dummy += fvalue + "','"
                     else
                         ' work around te restore null value
@@ -729,28 +826,43 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
             dummy = ""
             if instr(filterext, ".mp3") > 0 and htmloutput = "extra" then
                 ' table header
-                print "<table id='myTable'>"
-                print "  <tr>"
-                print "   <!--javacript sorttable(num) num is amount of fields-->"
-                print "   <th onclick='sortTable(0)'; width=20px;>*</th>"
-                print "   <th onclick='sortTable(1)'>artist</th>"
-                print "   <th onclick='sortTable(2)'>title</th>"
-                print "   <th onclick='sortTable(3)'>genre</th>"
-                print "   <th onclick='sortTable(4)'>year</th>"
-                print "  </tr>"
+                print "<table class='sortable' id='datatable'>"
+                print "  <thead><tr>"
+                print "   <th width=20px;>"
+                print "     <div class='trdropdown'><button class='trdropbtn'></button><div class='trdropdown-content'>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '1')" + chr$(34) + ";>artist</a>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '2')" + chr$(34) + ";>title</a>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '3')" + chr$(34) + ";>album</a>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '4')" + chr$(34) + ";>genre</a>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '5')" + chr$(34) + ";>year</a>"
+                print "     </div></div>"
+                print "   </th>"
+                print "   <th>artist</th>"
+                print "   <th>title</th>"
+                print "   <th>album</th>"
+                print "   <th>genre</th>"
+                print "   <th>year</th>"
+                print "  </tr></thead>"
             else
-                ' table header
-                print "<table id='myTable'>"
-                print "  <tr>"
-                print "   <!--javacript sorttable(num) num is amount of fields-->"
-                print "   <th onclick='sortTable(0)'; width=20px;>*</th>"
-                print "   <th onclick='sortTable(1)'>path</th>"
-                print "   <th onclick='sortTable(2)'>name</th>"
-                print "   <th onclick='sortTable(3)'>ext</th>"
-                print "   <th onclick='sortTable(4)'>size</th>"
-                print "   <th onclick='sortTable(5)'>date</th>"
-                print "   <th onclick='sortTable(6)'>attr</th>"
-                print "  </tr>"
+                ' table header todo drop down filter needs to alter javascript tdelement ui name
+                print "<table class='sortable' id='datatable'>"
+                print "  <thead><tr>"
+                print "   <th width=20px;>"
+                print "     <div class='trdropdown'><button class='trdropbtn'></button><div class='trdropdown-content'>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '1')" + chr$(34) + ";>path</a>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '2')" + chr$(34) + ";>name</a>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '3')" + chr$(34) + ";>ext</a>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '4')" + chr$(34) + ";>size</a>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '5')" + chr$(34) + ";>date</a>"
+                print "     </div></div>"
+                print "   </th>"
+                print "   <th>path</th>"
+                print "   <th>name</th>"
+                print "   <th>ext</th>"
+                print "   <th>size</th>"
+                print "   <th>date</th>"
+                print "   <th>attr</th>"
+                print "  </tr></thead>"
             end if
     end select
 
@@ -784,19 +896,37 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                     If (attrib And fbArchive ) <> 0 Then fattr = "archived"
                     select case listtype
                         case "csv", "xml", "json", "sql"
-                            argc(0) = "path"
-                            argc(1) = "file"
-                            argc(2) = "fileext"
-                            argc(3) = "fsize"
-                            argc(4) = "fdate"
-                            argc(5) = "fattr"
+                            if instr(filterext, ".mp3") > 0 and htmloutput = "extra" then
+                                ' path(i) folder and drive
+                                getmp3baseinfo(path(i) + file)
+                                argc(0) = "artist"
+                                argc(1) = "title"
+                                argc(2) = "album"
+                                argc(3) = "year"
+                                argc(4) = "genre"
+                                argc(5) = "nop"
 
-                            argv(0) = path(i)
-                            argv(1) = file
-                            argv(2) = fileext
-                            argv(3) = str(fsize)
-                            argv(4) = fdate
-                            argv(5) = fattr
+                                argv(0) = taginfo(1)
+                                argv(1) = taginfo(2)
+                                argv(2) = taginfo(3)
+                                argv(3) = taginfo(4)
+                                argv(4) = taginfo(5)
+                                argv(5) = "nop"
+                            else
+                                argc(0) = "path"
+                                argc(1) = "file"
+                                argc(2) = "fileext"
+                                argc(3) = "fsize"
+                                argc(4) = "fdate"
+                                argc(5) = "fattr"
+
+                                argv(0) = path(i)
+                                argv(1) = file
+                                argv(2) = fileext
+                                argv(3) = str(fsize)
+                                argv(4) = fdate
+                                argv(5) = fattr
+                            end if
 
                             For j As Integer = 0 To 5
                                 redim preserve record.fieldname(0 to recnr + 5)
@@ -810,22 +940,23 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                             if instr(filterext, ".mp3") > 0  and htmloutput = "extra" then
                                 ' path(i) folder and drive
                                 getmp3baseinfo(path(i) + file)
-                                print "<tr onclick=" + chr$(34) + "audioplay('file://" + replace(path(i), "\", "/") + file + "', this);" + chr$(34) + ">" + _
+                                print "<tr class='trlight' onclick=" + chr$(34) + "audioplay('file://" + replace(path(i), "\", "/") + file + "', this);" + chr$(34) + ">" + _
                                           "<td><div class='audiobutton'></div></td>" _
                                           + "<td>" + taginfo(1) + "</td>" _
                                           + "<td>" + taginfo(2) + "</td>" _
+                                          + "<td>" + taginfo(3) + "</td>" _
                                           + "<td>" + taginfo(5) + "</td>" _
                                           + "<td>" + taginfo(4) + "</td>" _
                                           + "</tr>"
                             '                    print ".. adding " + taginfo(1) + " - " +  taginfo(2)
                             else
                                 if instr(filterext, ".jpg") > 0  and htmloutput = "extra" then
-                                    print "     <tr onclick=" + chr$(34) + "document.getElementById('myModal').style.display='block'; currentDiv(" _ 
+                                    print "     <tr class='trlight' onclick=" + chr$(34) + "document.getElementById('myModal').style.display='block'; currentDiv(" _ 
                                                               & maxfiles + 1 & ");" + chr$(34) + ">"
                                     print "        <td><img class=" + chr$(34) + "tdthumb" + chr$(34) + " src=" + chr$(34) _
                                                     + "file://" + replace(path(i), "\", "/") + file + chr$(34) + "></td>"
                                 else
-                                    print "     <tr>"
+                                    print "     <tr class='trlight'>"
                                     print "        <td></td>"
                                 end if
                                 print "        <td>" + path(i) + "</td>"
@@ -873,6 +1004,13 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                 print "</div>"
                 print "<!-- overlay for image navigation -->
                 print "<div id=" + chr$(34) + "myModal" + chr$(34) + " class=" + chr$(34) + "modal" + chr$(34) + ">"
+        print "  <span class='playslide'>"
+        print "         <a href='templates/slide.html' style='text-decoration: none;' target='_blank'>"
+        print "            <svg class='svglight' viewBox='0 0 32 3' height='16px' width='16px' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>"
+        print "            <path d='M1,14c0,0.547,0.461,1,1,1c0.336,0,0.672-0.227,1-0.375L14.258,9C14.531,8.867,15,8.594,15,8s-0.469-0.867-0.742-1L3,1.375  C2.672,1.227,2.336,1,2,1C1.461,1,1,1.453,1,2V14z'/>"
+        print "            </svg>"
+        print "        </a>&nbsp;&nbsp;"
+        print "  </span>"
                 print "  <span class=" + chr$(34) + "close" + chr$(34) + ">&times;</span>"
                 print "   <p id=" + chr$(34) + "time" + chr$(34) + "></p>"
                 print "   <p id=" + chr$(34) + "date" + chr$(34) + "></p>"
@@ -1081,15 +1219,17 @@ Function getmp3cover(filename As String) As boolean
     dim bend    as integer
     dim ext     as string = ""
     dim thumb   as string
+    dim f       as integer
+    f = freefile
     ' remove old thumb if present
     delfile(exepath + "\thumb.jpg")
     delfile(exepath + "\thumb.png")
-    Open filename For Binary Access Read As #1
-        If LOF(1) > 0 Then
-            buffer = String(LOF(1), 0)
-            Get #1, , buffer
+    Open filename For Binary Access Read As #f
+        If LOF(f) > 0 Then
+            buffer = String(LOF(f), 0)
+            Get #f, , buffer
         End If
-    Close #1
+    Close #f
     if instr(1, buffer, "APIC") > 0 then
         length = mid(buffer, instr(buffer, "APIC") + 4, 4)
         ' ghetto check funky first 4 bytes signifying length image
@@ -1148,13 +1288,13 @@ Function getmp3cover(filename As String) As boolean
             ext = ".jpg"
         end if
         buffer = ""
-        Close #1
         ' attempt to write thumbnail to temp file
         if ext <> "" then
+            f = freefile
             thumb = exepath + "\thumb" + ext
-            open thumb for Binary Access Write as #1
-                put #1, , chunk
-            close #1
+            open thumb for Binary Access Write as #f
+                put #f, , chunk
+            close #f
         else
             ' no cover art in mp3 optional use folder.jpg if present as thumb
         end if
@@ -1446,19 +1586,18 @@ function arrayhighestvalue(needle as string, wc as wordtally) as integer
     return occurancemax
 end function
 
-' check if string contains alpha numeric values
-function isalphanumeric (needle as string) as boolean
-
-    dim as boolean is_alphanumeric = false
-
-    for i as integer = 1 to len(needle)
-        if asc(needle) >= 65  then
+' check if string contains alphanumeric value
+' courtesy counting_pine https://www.freebasic.net/forum/viewtopic.php?p=166250&hilit=isalphanum#p166250 
+function isalphanumeric(haystack as string) as boolean
+    dim i as integer
+    do
+        select case asc(mid(haystack, i, 1))
+            case asc("0") to asc("9"), asc("A") to asc("Z"), asc("a") to asc("z")
             return true
-            exit for
-        end if
-    next
+        end select
+        i += 1
+    loop until i > len(haystack)
     return false
-
 end function
 
 function dictonary(filename as string, wc as wordtally) as string

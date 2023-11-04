@@ -1,6 +1,10 @@
+' import export various file formats csv, json, html, sql and xml
+' to and from a sqlite database by thrive4 sept 2023
+' more info see: https://github.com/thrive4/util.fb.cmdsqlite
+
 declare function listrecords(needle as string = "") as boolean
 #include once "sqlite3.bi"
-#Include once "windows.bi"
+#include once "windows.bi"
 #include once "utilfile.bas"
 #cmdline "app.rc"
 
@@ -54,7 +58,7 @@ function getrecord(needle as string) as string
     end if
 end function
 
-function listcsv(needle as string = "") as boolean
+function listcsv(needle as string = "", checkfile as boolean = false) as boolean
 
     dim dummy   as string = ""
     dim fieldnr as integer = 0
@@ -64,12 +68,16 @@ function listcsv(needle as string = "") as boolean
     for i as integer = 0 to recnr
         with record
             if instr(dummy, record.fieldname(i)) = 0  then
+                if record.fieldname(i) = needle and checkfile then
+                    dummy += "coverfound,"
+                end if
                 dummy += record.fieldname(i) + ","
                 fieldnr += 1
             end if
         end with
     next i
     print mid(dummy, 1, len(dummy) - 1)
+
 
     ' get fieldvalues aka data
     dummy = ""
@@ -78,6 +86,13 @@ function listcsv(needle as string = "") as boolean
             ' add " delimiter comma is used
             if instr(record.fieldvalue(i), ",") then
                 record.fieldvalue(i) = chr$(34) + record.fieldvalue(i) + chr$(34)
+            end if
+            if record.fieldname(i) = needle and checkfile then
+                if FileExists(record.fieldvalue(i)) <> 0 then 
+                    dummy += "true,"
+                else
+                    dummy += "false," 
+                end if 
             end if
             if cnt = fieldnr then
                 dummy += record.fieldvalue(i) + chr$(13) + chr$(10)
@@ -168,22 +183,35 @@ function listhtml(needle as string = "") as boolean
     close(tmp)
 
     ' table header
-    print "<table id='myTable'>"
-    print "  <tr>"
-    print "     <!--javacript sorttable(num) num is amount of fields-->"
-    print "     <th onclick='sortTable(0)'; width=20px;>*</th>"
+    print "<table class='sortable' id='datatable'>"
+    print "  <thead><tr>"
+    print "     <th width=20px;>"
+    print "     <div class='trdropdown'><button class='trdropbtn'></button><div class='trdropdown-content'>"
  
-    ' create table header count nr fields
+    ' create html table dropdown filter on fieldname
+    dummy = ""
     for i as integer = 0 to recnr
         with record
             if instr(dummy, record.fieldname(i)) = 0  then
-                    dummy += record.fieldname(i) + ","
-                    print "     <th onclick='sortTable(" & fieldnr + 1 & ")'>" + record.fieldname(i) + "</th>"
+                dummy += record.fieldname(i) + ","
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '" + str(i + 1) + "')" + chr$(34) + ";>" + record.fieldname(i) + "</a>"
+            end if
+        end with
+    next i
+    print "     </div></div>"
+
+    ' create table header count nr fields
+    dummy = ""
+    for i as integer = 0 to recnr
+        with record
+            if instr(dummy, record.fieldname(i)) = 0  then
+                dummy += record.fieldname(i) + ","
+                print "     <th>" + record.fieldname(i) + "</th>"
                 fieldnr += 1
             end if
         end with
     next i
-    print "  </tr>"
+    print "  </tr></thead>"
     print "  <tr>"
     print "      <td></td>"
 
@@ -254,7 +282,7 @@ function listjson(needle as string = "") as boolean
                     cnt = 1
                 else
                     if cnt = 1 then
-                        dummy += "{" + chr$(34) + record.fieldname(i) + chr$(34) + ":" + chr$(34) + record.fieldvalue(i) + chr$(34) + ","
+                        dummy += "{"
                     end if
                     dummy += chr$(34) + record.fieldname(i) + chr$(34) + ":" + chr$(34) + record.fieldvalue(i) + chr$(34) + ","
                     cnt += 1
@@ -303,8 +331,12 @@ function listxml(dbname as string = "", tbname as string = "") as boolean
         end if
         with record
             ' todo figure out why starting from 0 causes empty record
-                record.fieldname(i) = replace(record.fieldname(i), " ", "_")
-                print space((len(dbname) + len(tbname)) + 1);"<" + record.fieldname(i) + ">" + record.fieldvalue(i) + "</" + record.fieldname(i) + ">"
+            record.fieldname(i) = replace(record.fieldname(i), " ", "_")
+            ' sanitize xml values
+            record.fieldvalue(i) = replace(record.fieldvalue(i), " & ", " &amp; ")
+            record.fieldvalue(i) = replace(record.fieldvalue(i), ">", "&gt;")
+            record.fieldvalue(i) = replace(record.fieldvalue(i), "<", "&lt;")
+            print space((len(dbname) + len(tbname)) + 1);"<" + record.fieldname(i) + ">" + record.fieldvalue(i) + "</" + record.fieldname(i) + ">"
         end with
         cnt += 1
         if cnt = fieldnr then
@@ -352,23 +384,6 @@ function listrecords(needle as string = "") as boolean
         end if    
     next i
     logentry("notice", "listrecords nr record(s) " & ((recnr + 1) / fieldnr))
-
-    return true
-
-end function
-
-function checkfile(needle as string = "") as boolean
-
-    for i as integer = 0 to recnr
-        with record
-            if record.fieldname(i) = needle then
-                print record.fieldvalue(i) + " check:" & FileExists(record.fieldvalue(i))
-            else
-                print record.fieldname(i) + " = " + record.fieldvalue(i)
-            end if
-        end with
-    next i
-    logentry("notice", "checkfile nr record(s) " & recnr)
 
     return true
 
@@ -598,7 +613,8 @@ while i < __FB_ARGC__
                     if command(4) = "" then
                         logentry("fatal", "checkfile specify field name with file path.. '" & command(i) & "'")
                     else
-                        checkfile(command(4))
+                        'checkfile(command(4))
+                        listcsv(command(4), true)
                     end if
                 case instr(command(3), "csv") > 0
                     listcsv()
