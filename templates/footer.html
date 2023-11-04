@@ -10,7 +10,64 @@
           </audio>
       </div>
 </footer>
+<!-- set myimg workaround for imageviewer link !-->
+<p id='myImg'></p>
+
+     </div>
+      <br><br>
+      <br><br>
+      <br><br>
+      <br><br>
+      <br><br>
+      <br><br>
+      <br><br>
+      <br><br>
+      <br><br>
+</div>
+<!-- overlay for image navigation -->
+<div id="myModal" class="modal">
+<div id="imageoverlay"></div>
+<span class="close">&times;</span>
+<div class="w3-content w3-display-container">
+<div class="w3-display-container mySlides">
+<div class="demo" style="visibility: hidden;"></div>
+</div>
+</div>
 <script type="text/javascript" src="templates/lib.js"></script>
 <script type="text/javascript" src="templates/libtheme.js"></script>
+<script type="text/javascript" src="templates/imageviewer.js"></script>
+<script>
+    let text           = "";
+    let filterelement  = "";
+
+    // ui label for searchbox indicates which element will filter
+    if (window.localStorage.getItem('tdelement') === '1') {
+       filterelement = "artist";
+    }
+    if (window.localStorage.getItem('tdelement') === '2') {
+       filterelement = "title";
+    }
+    if (window.localStorage.getItem('tdelement') === '3') {
+       filterelement = "album";
+    }
+    if (window.localStorage.getItem('tdelement') === '4') {
+       filterelement = "genre";
+    }
+    if (window.localStorage.getItem('tdelement') === '5') {
+       filterelement = "year";
+    }
+    if (window.localStorage.getItem('tdelement') === null) {
+       window.localStorage.setItem('tdelement', '1');
+       filterelement = "artist";
+    }
+    if (window.localStorage.getItem('theme') === 'dark') {
+       text += '<input class="tablesearchboxdark" type="text" id="srinput" onkeyup="searchandfilter()" placeholder="Search for ' + filterelement + '..">';
+    } else {
+       text += '<input class="tablesearchboxlight" type="text" id="srinput" onkeyup="searchandfilter()" placeholder="Search for ' + filterelement + '..">';
+    }
+    document.getElementById("searchbox").innerHTML = text;
+    //window.alert(text);
+
+</script>
 </body>
 </html>

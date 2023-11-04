@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta name="viewport" content="width=device-width, initial-scale=1" charset="UTF-8">
+    <title>slide show</title>
+    <link rel="icon" type="image/x-icon" href="images/favicon.jpg">
+    <link rel="stylesheet" href="font.css" />
+    <link rel="stylesheet" href="main.css" />
+    <link rel="stylesheet" href="slide.css" />
+</head>
+<body>
+<button id="darkmodeswitch" hidden>dark mode on/off</button>
+
+<div id="slideshow">
+   <p id="time" class="kbslidetime"></p>
+   <p id="date" class="kbslidedate"></p>
+   <div id="schweinjson"></div>
+   <div id="tutorial"></div>
+   <img src="">
+
+<script>
+    var refresh = window.localStorage.getItem('schweinjson');
+    //window.alert(refresh);
+    let text           = "";
+    let cnt            = 1;
+    text += '{"images": [{';
+    // get json data
+    url = `imageviewer.json`;
+    request = new XMLHttpRequest();
+    request.open('GET', url, true);
+    // work around xml parsing error in firefox, etc
+    request.overrideMimeType("text/html");
+    request.send();
+
+    request.onload = function () {
+        var objct = JSON.parse(this.response);
+        Object.entries(objct).forEach((entry) => {
+            const [key, value] = entry;
+            //window.alert(`${key}${value.name}`);
+            if (cnt < objct.length) {
+               text += '"href": "' + value.href + '", "name": "' + value.name + '"}, {';
+            } else {
+               text += '"href": "' + value.href + '", "name": "' + value.name + '"}';
+            }
+            cnt += 1;
+        });
+        text += ']}';
+        window.localStorage.setItem('schweinjson',text);
+    };
+    if ( refresh === null) {
+      window.alert('start slideshow');
+      location.reload();
+    }
+
+    var data = JSON.parse(window.localStorage.getItem('schweinjson'));
+    data.images.forEach(function(obj) {
+        var image = new Image();
+        image.src = obj.href;
+        image.alt = obj.name;
+        //window.alert(image.alt);
+        document.getElementById("tutorial").appendChild(image);
+     });
+</script>
+
+    <div class="fullscreen">
+         <button onclick="togglefullscreen();" class="btn"><br><br><br>
+         <svg class="svglight" height="32px" viewBox="0 0 32 32" width="32px" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+         <g id="Fullscreen"><path d="M32,1c0-0.558-0.442-1-1-1l-8.985,0c-0.568,0-0.991,0.448-0.992,1.016C21.023,1.583,21.447,2,22.015,2L30,2
+         l-0.016,8.023c0,0.568,0.432,1,1,1c0.568-0.001,1-0.432,1-1L32,1.015c0-0.003-0.001-0.005-0.001-0.007C31.999,1.005,32,1.003,32,1z"/>
+         <path d="M10.016,0H1.031C1.028,0,1.026,0.001,1.023,0.001C1.021,0.001,1.018,0,1.016,0c-0.558,0-1,0.442-1,1
+         L0,10.008C0,10.576,0.448,11,1.016,11C1.583,11,2,10.576,2,10.008L2.016,2h8c0.568,0,1-0.432,1-1C11.015,0.432,10.583,0,10.016,0z"/>
+         <path d="M9.985,30H2v-8c0-0.568-0.432-1-1-1c-0.568,0-1,0.432-1,1v8.985c0,0.003,0.001,0.005,0.001,0.007
+         C0.001,30.995,0,30.997,0,31c0,0.558,0.442,1,1,1h8.985c0.568,0,0.991-0.448,0.992-1.016C10.977,30.417,10.553,30,9.985,30z"/>
+         <path d="M30.984,21.023c-0.568,0-0.985,0.424-0.984,0.992V30l-8,0c-0.568,0-1,0.432-1,1c0,0.568,0.432,1,1,1
+         l8.985,0c0.003,0,0.005-0.001,0.007-0.001C30.995,31.998,30.997,32,31,32c0.558,0,1-0.442,1-1v-8.985 C32,21.447,31.552,21.023,30.984,21.023z"/>
+         </g></svg>
+         </button>
+    </div>
+</div>
+
+<!-- set myimg workaround for imageviewer link !-->
+<p id='myImg'></p>
+<div class="w3-display-container mySlides"></div>
+<div class="demo" style="visibility: hidden;"></div>
+
+<script type="text/javascript" src="lib.js"></script>
+<script type="text/javascript" src="libtheme.js"></script>
+<script type="text/javascript" src="slide.js"></script>
+</body>
+</html>
