@@ -15,6 +15,7 @@ and file in specified field.\
 See included help, or tutorial.txt in data folder, for more details\
 cmdsqlite.exe /?  (or -h, -help, etc)\
 Note: [folder] [filespec] folders are scanned recursively for filespec
+
 ## usage
 - basic\
 cmdsqlite.exe [dbname] [query]\
@@ -27,21 +28,37 @@ example: cmdsqlite.exe g:\data\images\classic *.jpg csv
 checkfile returns -1 if the file exists, otherwise zero 0
 
 - export to html(table)\
-cmdsqlite.exe game.db "select name, developer from game" html\
+example: cmdsqlite.exe game.db "select name, developer from game" html\
 exports query result to an html sortable table (using templates)\
 
 - export to html(table) via folder\
-cmdsqlite.exe g:\data\mp3\classic *.mp3 html\
+example: cmdsqlite.exe g:\data\mp3\classic *.mp3 html\
 exports all files and subsequent folders in 'g:\data\mp3\classic'\
 to an html sortable table (using templates)
 
 - export to json\
-cmdsqlite.exe game.db "select name, developer from game" json\
+example: cmdsqlite.exe game.db "select name, developer from game" json\
 equivelent of:\
 select json_object('name', name, 'developer', developer) from game" json
 
-- exports to csv\
-cmdsqlite.exe game.db "select name, developer from game" csv
+- export to csv\
+example: cmdsqlite.exe game.db "select name, developer from game" csv
+
+- export coverart in mp3\
+example: cmdsqlite.exe g:\data\mp3\classic *.mp3 cover\
+exports cover art (.jpr or .png) in mp3 to folder cover and generates report\
+with width / height, thumbnail info, etc of .jpg or .png if present
+
+- supplement exporttype: 'exif' as optional fourth parameter\
+example: cmdsqlite.exe g:\data\images\paris *.jpg csv exif\
+generates report with\
+width / height in .jpg or .png if present
+
+- example: cmdsqlite.exe g:\data\images\paris *.jpg html exif\
+filespec *.jpg creates imageviewer
+
+- example: cmdsqlite.exe g:\data\mp3\classic *.mp3 html exif\
+filespec *.mp3 gets tag info and creates audio link
 
 - import via sql of csv, json or xml\
 cmdsqlite.exe [filename].csv\
@@ -55,12 +72,22 @@ displays table names contained in [dbname]\
 cmdsqlite.exe [dbname] showfields [tablename]\
 displays fieldnames contained in [tablename]
 
+- convert
+.mht files are converted to .txt and .html\
+usage: <filename>.mht\
+example: cmdsqlite.exe g:\data\text\demo.mht\
+creates a folder <filename> and extracts all files in the .mht\
+plus converts the main .html to a sperate wordwrapped text file.
+
 ## configuration
 options via \conf\conf.ini\
 [output]\
+' deprecated\
 ' additional parsing per filetype mp3, jpg\
 ' options: default, extra\
-htmloutput      = extra
+' htmloutput      = extra\
+use fourth parameter 'exif' on commandline
+
 ## requirements
 sqlite.dll 32-bit DLL (x86) for SQLite version 3.43.0.\
 https://www.sqlite.org/download.html
@@ -71,6 +98,7 @@ handles   ~30 / ~50\
 threads   1 / 3\
 cpu       ~1 (low) / ~2\
 tested on intel i5-6600T
+
 ## special thanks
 tips on commandline parsing via:\
 https://www.freebasic.net/forum/viewtopic.php?t=31889 code by coderJeff\

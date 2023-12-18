@@ -3,11 +3,26 @@
 ' more info see: https://github.com/thrive4/util.fb.cmdsqlite
 
 declare function listrecords(needle as string = "") as boolean
+declare function  getimagemetric(filename As String) As boolean
+' init imagemetric
+common shared coverwidth    as integer
+common shared coverheight   as integer
+common shared orientation   as string
+common shared report        as string
+common shared thumbnail     as string
+common shared thumb         as integer
+common shared layout        as string
+common shared chunk         as string
+common shared csv           as string
+
 #include once "sqlite3.bi"
 #include once "windows.bi"
 #include once "utilfile.bas"
+#include once "utilmedia.bas"
+#include once "utilmht.bas"
 #cmdline "app.rc"
 
+' init sqlite
 Dim db      As sqlite3 Ptr
 Dim rc      As Integer
 Dim fn      As String
@@ -77,7 +92,6 @@ function listcsv(needle as string = "", checkfile as boolean = false) as boolean
         end with
     next i
     print mid(dummy, 1, len(dummy) - 1)
-
 
     ' get fieldvalues aka data
     dummy = ""
@@ -171,7 +185,8 @@ function listhtml(needle as string = "") as boolean
     dim tbname  as string = "game"
     dim fieldnr as integer = 0
     dim cnt     as integer = 0
-    dim         as integer itemnr = 1, i = 1, n = 1, tmp, f
+    dim         as integer itemnr = 1, i = 1, n = 1
+    dim         as long tmp, f
 
     ' get template for body, css, and javacript    
     tmp = readfromfile(exepath  + "\templates\head.html")
@@ -277,6 +292,17 @@ function listjson(needle as string = "") as boolean
                 end if
             else
                 ' parse non sqlite output
+
+' todo implement rest of json escaping
+'Backspace is replaced with \b
+'Form feed is replaced with \f
+'Newline is replaced with \n
+'Carriage return is replaced with \r
+'Tab is replaced with \t
+'Double quote is replaced with \"
+'Backslash is replaced with \\
+record.fieldvalue(i) = replace(record.fieldvalue(i), "\", "\\")
+
                 if cnt = fieldnr then
                     dummy += chr$(34) + record.fieldname(i) + chr$(34) + ":" + chr$(34) + record.fieldvalue(i) + chr$(34) + "}," + chr$(13) + chr$(10)
                     cnt = 1
@@ -395,8 +421,16 @@ dim itm        as string
 dim inikey     as string
 dim inival     as string
 dim inifile    as string = exepath + "\conf\" + "conf.ini"
-dim f          as integer
+dim f          as long
 dim htmloutput as string
+
+' init mp3 cover
+dim nocover     as string = ""
+dim tempfolder  as string = exepath + "\cover"
+dim filename    as string
+dim itemnr      as integer = 0
+dim listitem    as string
+dim maxitems    as integer = 0
 
 if FileExists(inifile) = false then
     logentry("error", inifile + "file does not excist")
@@ -414,24 +448,21 @@ else
                     logtype = inival
                 case "usecons"
                     usecons = inival
-                case "htmloutput"
-                    htmloutput = inival
+                'case "htmloutput"
+                '    htmloutput = inival
             end select
             'print inikey + " - " + inival
         end if    
-    loop    
+    loop
+    close(f)    
 end if    
 
-' basic commandline parser
+' init basic commandline parser
 ' via https://www.freebasic.net/forum/viewtopic.php?t=31889 code by coderJeff
 dim i               as integer = 1
 dim runsqlquery     as boolean = false
 dim runlistrecords  as boolean = false
 dim dummy           as string = ""
-
-'print "cmd1 " + command(1)
-'print "cmd2 " + command(2)
-'print "cmd3 " + command(3)
 
 ' parse if no commandline options are present
 select case true
@@ -494,12 +525,20 @@ while i < __FB_ARGC__
                     else
                         logentry("fatal", "file not found or missing.. '" & command(i) & "'")
                     end if
+                case instr(command(1), ".mht") > 0
+                    if FileExists(command(1)) then
+                        mhtconvert(command(1))
+                        wordwrap2file(command(1), swp)
+                        logentry("terminate", "mhtconvert duration " + command(1) + " " + exectime(exectimer, "stop"))
+                    else
+                        logentry("fatal", "file not found or missing.. '" & command(i) & "'")
+                    end if
                 ' eperimental todo use as text analysis for sqlite fts5
                 'case instr(command(1), ".txt") > 0
                 '        dictonary(command(1), wc)
                 case instr(command(1), ":") > 0
                     if checkpath(command(1)) = false then
-                        logentry("fatal", "please specify a valid path.. '" & command(i) & "'")
+                        logentry("fatal", "please specify a valid file or path.. '" & command(i) & "'")
                     end if            
                     if len(command(2)) = 0 then
                         logentry("fatal", "please specify filespec ex. *.mp3.. '" & command(i) & "'")
@@ -507,7 +546,7 @@ while i < __FB_ARGC__
                     SELECT case command(3)
                         case "csv", "json", "html", "sql", "xml"
                             ' note somehow freebasic has an issue with the wildcard *
-                            dir2file(command(1), command(2), command(3), htmloutput)
+                            dir2file(command(1), command(2), command(3), command(4))
                             dummy = replace(mid(command(1), instrrev(command(1), "\") + 1), " ", "")
                             select case command(3)
                                 case "csv"
@@ -522,10 +561,68 @@ while i < __FB_ARGC__
                                     listxml(replace(replace(left(command(1),instrrev(command(1), "\") - 1), "\", "_"), ":", ""), dummy)
                             END select
                             logentry("notice", "dir2" + command(3) + " duration " + exectime(exectimer, "stop"))
+                        case "cover"
+                            if instr(command(2), ".mp3") > 0 then
+                                ' export covers to jpeg or png file(s)
+                                mkdir (tempfolder) ' create export folder regardless
+                                print "scanning and exporting mp3 covers(s)...."
+                                if instr(command(1), ".mp3") > 0 then
+                                    getmp3cover(command(1), filename)
+                                    itemnr = 1
+                                else
+                                    createlist(command(1), ".mp3", "cover")
+                                    'f = freefile
+                                    open "cover.tmp" for input as #20
+                                    Do Until EOF(20)
+                                        Line Input #20, listitem
+                                        filename = lcase(mid(listitem, instrrev(listitem, "\") + 1))
+                                        filename =  lcase(mid(filename, 1, instrrev(filename, ".") - 1))
+                                        if getmp3cover(listitem, filename) then
+                                            itemnr += 1
+                                        else
+                                            nocover = nocover + "no cover art found in " + filename + chr$(13) + chr$(10)
+                                            csv = csv + chr$(34) + command(1) + "\" + filename + chr$(34) + ",0,0" + chr$(13) + chr$(10)
+                                        end if
+                                        listitem = ""
+                                        maxitems += 1
+                                    loop
+                                    close(20)
+                                    ' strip final carrige return csv
+                                    csv = mid(csv, 1, len(csv) - 2)
+                                    ' cleanup listplay files
+                                    delfile(exepath + "\cover.tmp")
+                                    delfile(exepath + "\cover.lst")
+                                end if
+                                ' report to command line
+                                print nocover
+                                if thumbnail = "" then
+                                    print "no thumbnail(s) found in scanned files"
+                                else
+                                    print thumbnail
+                                end if
+                                if layout = "" then
+                                    print "all scanned file(s) are sqare"
+                                else
+                                    print layout
+                                end if
+                                print "finished scanning " & maxitems & " file(s)"
+                                print "exported " & itemnr & " covers(s) to " + tempfolder
+                                ' export results as csv
+                                f = freefile
+                                open "mp3cover.csv" for output as f
+                                    print #f, csv
+                                close(f)
+                                print "created report mp3cover.csv in " + exepath
+                                print "total duration operation(s) " + exectime(exectimer, "stop")
+                                logentry("terminate", "export mp3 album covers duration " + exectime(exectimer, "stop"))
+                            else
+                                logentry("fatal", "only supports mp3 files .. '" & command(i) & "'")
+                            end if
                         case else
                             logentry("fatal", "please specify a valid export file type.. '" & command(i) & "'")
                     end select
                     logentry("terminate", "normal termination created " + command(3))
+
                 case else
                     if FileExists(command(1)) then
                         logentry("fatal", "file not supported.. '" & command(i) & "'")

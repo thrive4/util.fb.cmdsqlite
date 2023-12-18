@@ -1,3 +1,16 @@
+update v1.2 18/12/2023
+- intergrated mp3 album cover export
+  from https://github.com/thrive4/util.fb.mp3cover
+  added filesize and orientation image as field data
+  to mp3cover.csv report
+- intergrated .mht convert (converts .mht to .html and .txt)
+  from https://www.freebasic.net/forum/viewtopic.php?p=288025
+- updated wordwrap2file some what better text formating
+- added sticky table header for data tables
+  sticky tip courtesy https://codepen.io/stephen-george-west/pen/rNpjXYL
+- updated help.ini with new functionality
+- partial implementation json data format escaping rules
+
 update v1.1 02/11/2023
 - added export meta info mp3 to other fileformats
   csv, json, sql and xml

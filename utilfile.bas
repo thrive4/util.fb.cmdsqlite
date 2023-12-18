@@ -79,7 +79,7 @@ Function logentry(entrytype As String, logmsg As String) As Boolean
     end if
 
     ' setup logfile
-    dim f as integer
+    dim f as long
     f = FreeFile
     logfile = exepath + "\" + appname + ".log"
     if FileExists(logfile) = false then
@@ -206,7 +206,7 @@ end function
 
 ' create a new file
 Function newfile(filename As String) As boolean
-    Dim f As integer
+    Dim f As long
 
     if FileExists(filename) then
         logentry("fatal", "creating " + filename + " file excists")
@@ -223,7 +223,7 @@ End Function
 
 ' create a temp file
 Function tmp2file(filename As String) As boolean
-    Dim f As integer
+    Dim f As long
 
     if FileExists(filename) = true then
       If Kill(filename) <> 0 Then
@@ -241,7 +241,7 @@ End Function
 
 ' append to an excisiting file
 Function appendfile(filename As String, msg as string) As boolean
-    Dim f As integer
+    Dim f As long
 
     if FileExists(filename) = false then
         logentry("fatal", "appending " + filename + " file does not excist")
@@ -258,7 +258,7 @@ End Function
 
 ' read a file
 Function readfromfile(filename As String) As long
-    Dim f As integer
+    Dim f As long
 
     if FileExists(filename) = false then
         logentry("fatal", "reading " + filename + " file does not excist")
@@ -300,6 +300,78 @@ Function checkpath(chkpath As String) As boolean
 
 End Function
 
+' based on recursive dir code of coderjeff https://www.freebasic.net/forum/viewtopic.php?t=5758
+function createlist(folder as string, filterext as string, listname as string) as integer
+    ' setup filelist
+    dim chk            as boolean
+    redim path(1 to 1) As string
+    dim as integer i = 1, n = 1, attrib
+    dim as long f, g
+    dim file           as string
+    dim fileext        as string
+    dim maxfiles       as integer
+    f = freefile
+    dim filelist as string = exepath + "\" + listname + ".tmp"
+    open filelist for output as #f
+
+    g = freefile
+    dim filelistb as string = exepath + "\" + listname + ".lst"
+    open filelistb for output as #g
+
+    #ifdef __FB_LINUX__
+      const pathchar = "/"
+    #else
+      const pathchar = "\"
+    #endif
+
+    ' read dir recursive starting directory
+    path(1) = folder 
+    if( right(path(1), 1) <> pathchar) then
+        file = dir(path(1), fbNormal or fbDirectory, @attrib)
+        if( attrib and fbDirectory ) then
+            path(1) += pathchar
+        end if
+    end if
+
+    while i <= n
+    file = dir(path(i) + "*" , fbNormal or fbDirectory, @attrib)
+        while file > ""
+            if (attrib and fbDirectory) then
+                if file <> "." and file <> ".." then
+                    ' todo evaluate limit recursive if starting folder is root
+                    if len(path(1)) > 3 then
+                        n += 1
+                        redim preserve path(1 to n)
+                        path(n) = path(i) + file + pathchar
+                    else
+                        logentry("error", "scanning from root dir not supported! " + path(i))
+                    end if
+                end if
+            else
+                fileext = lcase(mid(file, instrrev(file, ".")))
+                if instr(1, filterext, fileext) > 0 and len(fileext) > 3 then 
+                    print #f, path(i) & file
+                    print #g, path(i) & file
+                    maxfiles += 1
+                else
+                    logentry("warning", "file format not supported - " + path(i) & file)
+                end if    
+            end if
+            file = dir(@attrib)
+        wend
+        i += 1
+    wend
+    close(f)
+    close(g)
+
+    ' chk if filelist is created
+    if FileExists(filelist) = false then
+        logentry("warning", "could not create filelist: " + filelist)
+    end if
+
+    return maxfiles
+end function
+
 ' localization file functions
 ' ______________________________________________________________________________'
 
@@ -307,7 +379,7 @@ End Function
 dim locale as string = "en"
 sub displayhelp(locale as string)
     dim dummy as string
-    dim f     as integer
+    dim f     as long
     f = freefile
 
     ' get text
@@ -340,7 +412,7 @@ Function readuilabel(filename as string) as boolean
     dim itm    as string
     dim inikey as string
     dim inival as string
-    dim f      as integer
+    dim f      as long
 
     if FileExists(filename) = false then
         logentry("error", filename + " does not excist switching to default language")
@@ -457,7 +529,7 @@ End Function
 ' cheap csv to sql export
 Function csv2sql(filename as string, tbname as string = "") As boolean
 
-    Dim f       As integer
+    Dim f       As long
     Dim cnt     As integer = 0
     Dim fieldnr As integer = 0
     dim chk     as boolean = false
@@ -559,6 +631,7 @@ Function csv2sql(filename as string, tbname as string = "") As boolean
         cnt += 1
     Loop
     print "commit;"
+    close(f)
     logentry("notice", "exported csv " + filename + " to sql with tablename " + tbname + " #recs " & cnt)
 
     return true
@@ -568,8 +641,8 @@ end function
 ' cheap json to sql export
 Function json2sql(filename as string, tbname as string = "") As boolean
 
-    Dim f       As integer
-    dim g       as integer
+    Dim f       As long
+    dim g       as long
     Dim cnt     As integer = 0
     Dim fieldnr As integer = 0
     dim chk     as boolean = false
@@ -584,7 +657,6 @@ Function json2sql(filename as string, tbname as string = "") As boolean
     if FileExists(filename) = false then
         logentry("fatal", "file not found or missing..'" & filename & "'")
     end if
-
 
     f = FreeFile
     Open filename For input As #f
@@ -606,6 +678,7 @@ Function json2sql(filename as string, tbname as string = "") As boolean
         filename = exepath + "\temp.json"
     end if
     close(f)
+    f = FreeFile
     Open filename For input As #f
     cnt = 0
 
@@ -639,6 +712,7 @@ Function json2sql(filename as string, tbname as string = "") As boolean
     close(f)
 
     ' create inserts    
+    f = FreeFile
     Open filename For input As #f
     cnt = 0
     Do Until EOF( f )
@@ -692,7 +766,7 @@ end function
 ' cheap xml to sql export
 Function xml2sql(filename as string, tbname as string = "", element as string = "") As boolean
 
-    Dim f       As integer
+    Dim f       As long
     Dim cnt     As integer = 0
     dim chk     as boolean = false
     dim dbchk   as boolean = false
@@ -769,6 +843,7 @@ Function xml2sql(filename as string, tbname as string = "", element as string = 
                 end if
         end select
     Loop
+    close(f)
     dummy2 = "create table if not exists '" + tbname + "' (" + chr#(13) + chr$(10) + dummy2
     print mid(dummy2, 1, len(dummy2) - 3) + chr(13) + chr$(10) + ");"
     print mid(dummy, 1, len(dummy) - 4)
@@ -782,7 +857,7 @@ Function xml2sql(filename as string, tbname as string = "", element as string = 
         end if
     else
         logentry("notice", filename + " found " & cnt & " recs")
-    end if    
+    end if
     logentry("notice", "exported xml " + filename + " to sql with tablename " + tbname + " #recs " & cnt)
     return true
     
@@ -793,7 +868,8 @@ end function
 ' based on recursive dir code of coderjeff https://www.freebasic.net/forum/viewtopic.php?t=5758
 function dir2file(folder as string, filterext as string, listtype as string = "sql", htmloutput as string = "default") as integer
     ' setup filelist
-    dim                as integer i = 1, j=1, n = 1, attrib, itemnr, maxfiles, tmp, f
+    dim                as integer i = 1, j=1, n = 1, attrib, itemnr, maxfiles
+    dim                as long tmp, f
     dim dummy          as string
     dim dummy2         as string
     dim file           as string
@@ -824,8 +900,8 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
             Loop
             close(tmp)
             dummy = ""
-            if instr(filterext, ".mp3") > 0 and htmloutput = "extra" then
-                ' table header
+            if instr(filterext, ".mp3") > 0 and htmloutput = "exif" then
+                ' table header todo needs to be refactored and compressed
                 print "<table class='sortable' id='datatable'>"
                 print "  <thead><tr>"
                 print "   <th width=20px;>"
@@ -844,25 +920,48 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                 print "   <th>year</th>"
                 print "  </tr></thead>"
             else
-                ' table header todo drop down filter needs to alter javascript tdelement ui name
-                print "<table class='sortable' id='datatable'>"
-                print "  <thead><tr>"
-                print "   <th width=20px;>"
-                print "     <div class='trdropdown'><button class='trdropbtn'></button><div class='trdropdown-content'>"
-                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '1')" + chr$(34) + ";>path</a>"
-                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '2')" + chr$(34) + ";>name</a>"
-                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '3')" + chr$(34) + ";>ext</a>"
-                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '4')" + chr$(34) + ";>size</a>"
-                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '5')" + chr$(34) + ";>date</a>"
-                print "     </div></div>"
-                print "   </th>"
-                print "   <th>path</th>"
-                print "   <th>name</th>"
-                print "   <th>ext</th>"
-                print "   <th>size</th>"
-                print "   <th>date</th>"
-                print "   <th>attr</th>"
-                print "  </tr></thead>"
+                if (instr(filterext, ".jpg") > 0 or instr(filterext, ".png") > 0) and htmloutput = "exif" then
+                    ' table header
+                    print "<table class='sortable' id='datatable'>"
+                    print "  <thead><tr>"
+                    print "   <th width=20px;>"
+                    print "     <div class='trdropdown'><button class='trdropbtn'></button><div class='trdropdown-content'>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '1')" + chr$(34) + ";>filename</a>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '2')" + chr$(34) + ";>coverwidth</a>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '3')" + chr$(34) + ";>coverheight</a>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '4')" + chr$(34) + ";>orientation</a>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '5')" + chr$(34) + ";>filesize</a>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '5')" + chr$(34) + ";>thumbnail</a>"
+                    print "     </div></div>"
+                    print "   </th>"
+                    print "   <th>filename</th>"
+                    print "   <th>coverwidth</th>"
+                    print "   <th>coverheight</th>"
+                    print "   <th>orientation</th>"
+                    print "   <th>filesize</th>"
+                    print "   <th>thumbnail</th>"
+                    print "  </tr></thead>"
+                else
+                    ' table header todo drop down filter needs to alter javascript tdelement ui name
+                    print "<table class='sortable' id='datatable'>"
+                    print "  <thead><tr>"
+                    print "   <th width=20px;>"
+                    print "     <div class='trdropdown'><button class='trdropbtn'></button><div class='trdropdown-content'>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '1')" + chr$(34) + ";>path</a>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '2')" + chr$(34) + ";>name</a>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '3')" + chr$(34) + ";>ext</a>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '4')" + chr$(34) + ";>size</a>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '5')" + chr$(34) + ";>date</a>"
+                    print "     </div></div>"
+                    print "   </th>"
+                    print "   <th>path</th>"
+                    print "   <th>name</th>"
+                    print "   <th>ext</th>"
+                    print "   <th>size</th>"
+                    print "   <th>date</th>"
+                    print "   <th>attr</th>"
+                    print "  </tr></thead>"
+                end if
             end if
     end select
 
@@ -896,7 +995,7 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                     If (attrib And fbArchive ) <> 0 Then fattr = "archived"
                     select case listtype
                         case "csv", "xml", "json", "sql"
-                            if instr(filterext, ".mp3") > 0 and htmloutput = "extra" then
+                            if instr(filterext, ".mp3") > 0 and htmloutput = "exif" then
                                 ' path(i) folder and drive
                                 getmp3baseinfo(path(i) + file)
                                 argc(0) = "artist"
@@ -913,19 +1012,36 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                                 argv(4) = taginfo(5)
                                 argv(5) = "nop"
                             else
-                                argc(0) = "path"
-                                argc(1) = "file"
-                                argc(2) = "fileext"
-                                argc(3) = "fsize"
-                                argc(4) = "fdate"
-                                argc(5) = "fattr"
+                                if (instr(filterext, ".jpg") > 0 or instr(filterext, ".png") > 0) and htmloutput = "exif" then
+                                    getimagemetric(path(i) + file)
+                                    argc(0) = "filename"
+                                    argc(1) = "coverwidth"
+                                    argc(2) = "coverheight"
+                                    argc(3) = "orientation"
+                                    argc(4) = "filesize"
+                                    argc(5) = "thumbnail"
 
-                                argv(0) = path(i)
-                                argv(1) = file
-                                argv(2) = fileext
-                                argv(3) = str(fsize)
-                                argv(4) = fdate
-                                argv(5) = fattr
+                                    argv(0) = path(i) + file
+                                    argv(1) = str(coverwidth)
+                                    argv(2) = str(coverheight)
+                                    argv(3) = orientation
+                                    argv(4) = str(fsize)
+                                    argv(5) = str(thumb)
+                                else
+                                    argc(0) = "path"
+                                    argc(1) = "file"
+                                    argc(2) = "fileext"
+                                    argc(3) = "fsize"
+                                    argc(4) = "fdate"
+                                    argc(5) = "fattr"
+
+                                    argv(0) = path(i)
+                                    argv(1) = file
+                                    argv(2) = fileext
+                                    argv(3) = str(fsize)
+                                    argv(4) = fdate
+                                    argv(5) = fattr
+                                end if
                             end if
 
                             For j As Integer = 0 To 5
@@ -937,7 +1053,7 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                             Next j
                         case "html"
                             ' create html5 audioplayer
-                            if instr(filterext, ".mp3") > 0  and htmloutput = "extra" then
+                            if instr(filterext, ".mp3") > 0  and htmloutput = "exif" then
                                 ' path(i) folder and drive
                                 getmp3baseinfo(path(i) + file)
                                 print "<tr class='trlight' onclick=" + chr$(34) + "audioplay('file://" + replace(path(i), "\", "/") + file + "', this);" + chr$(34) + ">" + _
@@ -950,25 +1066,33 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                                           + "</tr>"
                             '                    print ".. adding " + taginfo(1) + " - " +  taginfo(2)
                             else
-                                if instr(filterext, ".jpg") > 0  and htmloutput = "extra" then
+                                if (instr(filterext, ".jpg") > 0 or instr(filterext, ".png") > 0) and htmloutput = "exif" then
+                                    getimagemetric(path(i) + file)
                                     print "     <tr class='trlight' onclick=" + chr$(34) + "document.getElementById('myModal').style.display='block'; currentDiv(" _ 
                                                               & maxfiles + 1 & ");" + chr$(34) + ">"
                                     print "        <td><img class=" + chr$(34) + "tdthumb" + chr$(34) + " src=" + chr$(34) _
                                                     + "file://" + replace(path(i), "\", "/") + file + chr$(34) + "></td>"
+                                    print "        <td>" + path(i) + file + "</td>"
+                                    print "        <td>" + str(coverwidth) + "</td>"
+                                    print "        <td>" + str(coverheight) + "</td>"
+                                    print "        <td>" + orientation + "</td>"
+                                    print "        <td>" + str(fsize) + "</td>"
+                                    print "        <td>" + str(thumb) + "</td>"
+                                    print "     </tr>"
                                 else
                                     print "     <tr class='trlight'>"
                                     print "        <td></td>"
+                                    print "        <td>" + path(i) + "</td>"
+                                    print "        <td>" + file + "</td>"
+                                    print "        <td>" + fileext + "</td>"
+                                    print "        <td>" & fsize & "</td>"
+                                    print "        <td>" + fdate + "</td>"
+                                    print "        <td>" + fattr + "</td>"
+                                    print "     </tr>"
                                 end if
-                                print "        <td>" + path(i) + "</td>"
-                                print "        <td>" + file + "</td>"
-                                print "        <td>" + fileext + "</td>"
-                                print "        <td>" & fsize & "</td>"
-                                print "        <td>" + fdate + "</td>"
-                                print "        <td>" + fattr + "</td>"
-                                print "     </tr>"
                             end if
                             ' create imageviewer A
-                            if instr(filterext, ".jpg") > 0  and htmloutput = "extra" then
+                            if instr(filterext, ".jpg") > 0  and htmloutput = "exif" then
                                 dummy += "        <div class=" + chr$(34) + "w3-display-container mySlides" + chr$(34) _
                                                             + ">" + chr$(13) + chr$(10)
                                 dummy += "          <img class=" + chr$(34) + "w3-animate-left ovimage" + chr$(34) + " src=" + chr$(34) _
@@ -1004,13 +1128,13 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                 print "</div>"
                 print "<!-- overlay for image navigation -->
                 print "<div id=" + chr$(34) + "myModal" + chr$(34) + " class=" + chr$(34) + "modal" + chr$(34) + ">"
-        print "  <span class='playslide'>"
-        print "         <a href='templates/slide.html' style='text-decoration: none;' target='_blank'>"
-        print "            <svg class='svglight' viewBox='0 0 32 3' height='16px' width='16px' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>"
-        print "            <path d='M1,14c0,0.547,0.461,1,1,1c0.336,0,0.672-0.227,1-0.375L14.258,9C14.531,8.867,15,8.594,15,8s-0.469-0.867-0.742-1L3,1.375  C2.672,1.227,2.336,1,2,1C1.461,1,1,1.453,1,2V14z'/>"
-        print "            </svg>"
-        print "        </a>&nbsp;&nbsp;"
-        print "  </span>"
+                print "  <span class='playslide'>"
+                print "         <a href='templates/slide.html' style='text-decoration: none;' target='_blank'>"
+                print "            <svg class='svglight' viewBox='0 0 32 3' height='16px' width='16px' xmlns='http://www.w3.org/2000/svg' xmlns:xlink='http://www.w3.org/1999/xlink'>"
+                print "            <path d='M1,14c0,0.547,0.461,1,1,1c0.336,0,0.672-0.227,1-0.375L14.258,9C14.531,8.867,15,8.594,15,8s-0.469-0.867-0.742-1L3,1.375  C2.672,1.227,2.336,1,2,1C1.461,1,1,1.453,1,2V14z'/>"
+                print "            </svg>"
+                print "        </a>&nbsp;&nbsp;"
+                print "  </span>"
                 print "  <span class=" + chr$(34) + "close" + chr$(34) + ">&times;</span>"
                 print "   <p id=" + chr$(34) + "time" + chr$(34) + "></p>"
                 print "   <p id=" + chr$(34) + "date" + chr$(34) + "></p>"
@@ -1062,7 +1186,7 @@ Function readinikeyvalue( filename as string, section as string, inikey as strin
         logentry("error", "reading " + filename + " file does not excist")
     end if    
 
-    Dim f As integer
+    Dim f As long
     Dim text As String
 
     f = FreeFile
@@ -1090,8 +1214,8 @@ Function readinikeyvalue( filename as string, section as string, inikey as strin
             Loop
         end if
     Loop
+    close(f)
     'logentry("notice", filename + " searching" + " with section " + section + " not found")
-
     return true
 End Function
 
@@ -1100,7 +1224,7 @@ Function readini(filename as string) as boolean
     dim itm    as string
     dim inikey as string
     dim inival as string
-    dim f      as integer
+    dim f      as long
     f = readfromfile(filename)
     Do Until EOF(f)
         Line Input #f, itm
@@ -1110,7 +1234,7 @@ Function readini(filename as string) as boolean
             'print inikey + " - " + inival
         end if    
     loop    
-    close f
+    close(f)
 return true
 end function
 
@@ -1119,7 +1243,8 @@ end function
 Function getmp3tag(searchtag As String, fn As String) As String
    'so we can avoid having the user need TALB for album, TIT2 for title etc, although they are accepted
    Dim As Integer skip, offset' in order to read certain things right
-   Dim As UInteger sig_to_find, count, fnum, maxcheck = 100000
+   Dim As UInteger sig_to_find, count, maxcheck = 100000
+   dim as long fnum
    dim as UShort tag_length
    Dim As UShort unitest, mp3frametest
    Dim As String tagdata
@@ -1210,101 +1335,6 @@ Function getmp3tag(searchtag As String, fn As String) As String
    Return tagdata
 
 End Function
-
-' attempt to extract and write cover art of mp3 to temp thumb file
-Function getmp3cover(filename As String) As boolean
-    Dim buffer  As String
-    dim chunk   as string
-    dim length  as string
-    dim bend    as integer
-    dim ext     as string = ""
-    dim thumb   as string
-    dim f       as integer
-    f = freefile
-    ' remove old thumb if present
-    delfile(exepath + "\thumb.jpg")
-    delfile(exepath + "\thumb.png")
-    Open filename For Binary Access Read As #f
-        If LOF(f) > 0 Then
-            buffer = String(LOF(f), 0)
-            Get #f, , buffer
-        End If
-    Close #f
-    if instr(1, buffer, "APIC") > 0 then
-        length = mid(buffer, instr(buffer, "APIC") + 4, 4)
-        ' ghetto check funky first 4 bytes signifying length image
-        ' not sure how reliable this info is
-        ' see comment codecaster https://stackoverflow.com/questions/47882569/id3v2-tag-issue-with-apic-in-c-net
-        if val(asc(length, 1) & asc(length, 2)) = 0 then
-            bend = (asc(length, 3) shl 8) or asc(length, 4)
-        else
-            bend = (asc(length, 1) shl 24 + asc(length, 2) shl 16 + asc(length, 3) shl 8 or asc(length, 4))
-        end if
-        if instr(1, buffer, "JFIF") > 0 then
-            ' override end jpg if marker FFD9 is present
-            if instr(buffer, CHR(&hFF, &hD9)) > 0 then
-                bend = instr(1, mid(buffer, instr(1, buffer, "JFIF")), CHR(&hFF, &hD9)) + 7
-            end if
-            chunk = mid(buffer, instr(buffer, "JFIF") - 6, bend)
-            ' thumbnail detection
-            if instr(instr(1, buffer, "JFIF") + 4, buffer, "JFIF") > 0 then
-                chunk = mid(buffer, instr(10, buffer, CHR(&hFF, &hD8)), instr(instr(buffer, CHR(&hFF, &hD9)) + 1, buffer, CHR(&hFF, &hD9)) - (instr(10, buffer, CHR(&hFF, &hD8)) - 2))
-                ' thumbnail in thumbnail edge case ffd8 ffd8 ffd9 ffd9 pattern in jpeg
-                if instr(chunk, CHR(&hFF, &hD8, &hFF)) > 0 then
-                    chunk = mid(buffer,_
-                    instr(1,buffer, CHR(&hFF, &hD8)),_
-                    instr(instr(instr(instr(1,buffer, CHR(&hFF, &hD9)) + 1, buffer, CHR(&hFF, &hD9)) + 1, buffer, CHR(&hFF, &hD9))_
-                    , buffer, CHR(&hFF, &hD9)) + 2 - instr(buffer, CHR(&hFF, &hD8)))
-                end if
-            end if
-            ext = ".jpg"
-        end if
-        ' use ext and exif check to catch false png
-        if instr(1, buffer, "‰PNG") > 0 and instr(1, buffer, "Exif") = 0 and ext = "" then
-            ' override end png if tag is present
-            if instr(1, buffer, "IEND") > 0 then
-                bend = instr(1, mid(buffer, instr(1, buffer, "‰PNG")), "IEND") + 7
-            end if
-            chunk = mid(buffer, instr(buffer, "‰PNG"), bend)
-            ext = ".png"
-        end if
-        ' funky variant for non jfif and jpegs video encoding?
-        if (instr(1, buffer, "Lavc58") > 0 or instr(1, buffer, "Exif") > 0) and ext = "" then
-            ' override end jpg if marker FFD9 is present
-            if instr(buffer, CHR(&hFF, &hD9)) > 0 then
-                bend = instr(1, mid(buffer, instr(1, buffer, "Exif")), CHR(&hFF, &hD9)) + 7
-            end if
-            if instr(1, buffer, "Exif") > 0 then
-                chunk = mid(buffer, instr(buffer, "Exif") - 6, bend)
-            else
-                chunk = mid(buffer, instr(buffer, "Lavc58") - 6, bend)
-            end if
-            ext = ".jpg"
-        end if
-        ' last resort just check on begin and end marker very tricky...
-        ' see https://stackoverflow.com/questions/4585527/detect-end-of-file-for-jpg-images#4614629
-        if instr(buffer, CHR(&hFF, &hD8)) > 0 and ext = ""then
-            chunk = mid(buffer, instr(1, buffer, CHR(&hFF, &hD8)), instr(1, buffer, CHR(&hFF, &hD9)))
-            ext = ".jpg"
-        end if
-        buffer = ""
-        ' attempt to write thumbnail to temp file
-        if ext <> "" then
-            f = freefile
-            thumb = exepath + "\thumb" + ext
-            open thumb for Binary Access Write as #f
-                put #f, , chunk
-            close #f
-        else
-            ' no cover art in mp3 optional use folder.jpg if present as thumb
-        end if
-        return true
-    else
-        ' no cover art in mp3 optional use folder.jpg if present as thumb
-        logentry("notice", "no cover art found in: " + filename)
-        return false
-    end if
-end function
 
 ' get base mp3 info
 function getmp3baseinfo(fx1File as string) as boolean
@@ -1464,22 +1494,25 @@ Function explode(haystack As String = "", delimiter as string, ordinance() As St
 
 End Function
 
-' setup word wrap string
+' setup wrap string
 type stringwrap
-    as integer  linecnt     ' current line
-    as integer  linemax     ' max viewable lines
-    as integer  linelength  ' max line length
-    as integer  wrapcharpos ' position to wrap on with wrapchar
-    as string   wrapchar    ' wrap character , . etc
-    as string   lineitem    ' line content
-    as string   linetemp    ' temp line when wraping
+    as integer  linecnt                ' current line
+    as integer  linemax                ' max viewable lines
+    as integer  linelength             ' max line length
+    as integer  wrapcharpos            ' position to wrap on with wrapchar
+    as string   wrapchar               ' wrap character , . etc
+    as string   lineitem               ' line content
+    as string   linetemp               ' temp line when wraping
+    as boolean  filternonalphanumeric  ' filter lines out with no alphanumeric characters
 end type
 
 dim swp as stringwrap
-swp.linecnt    = 1
-swp.linemax    = 10
-swp.linelength = 70
-swp.wrapchar   = " ,.?;-"
+swp.linecnt               = 1
+swp.linemax               = 10
+' todo needs to be proportional to background and font size text box
+swp.linelength            = 62
+swp.wrapchar              = " ,.?;-"
+swp.filternonalphanumeric = true
 
 function replace(byref haystack as string, byref needle as string, byref substitute as string) as string
 'found at https://freebasic.net/forum/viewtopic.php?f=2&t=9971&p=86259&hilit=replace+character+in+string#p86259
@@ -1496,23 +1529,162 @@ function replace(byref haystack as string, byref needle as string, byref substit
 
 end function
 
-function wordwrap2file(filename as string, swp as stringwrap) as boolean
+' check if string contains alphanumeric value
+' courtesy counting_pine https://www.freebasic.net/forum/viewtopic.php?p=166250&hilit=isalphanum#p166250 
+function isalphanumeric(haystack as string) as boolean
+    dim i as integer
+    do
+        select case asc(mid(haystack, i, 1))
+            case asc("0") to asc("9"), asc("A") to asc("Z"), asc("a") to asc("z")
+            return true
+        end select
+        i += 1
+    loop until i > len(haystack)
+
+    return false
+
+end function
+
+function htmlcleanup(haystack as string) as string
+    ' generic replace for text and html
+    haystack = Replace(haystack, "  ", "")
+    haystack = Replace(haystack, "=A0", " ")
+    haystack = Replace(haystack, "=A9", "©")
+    haystack = Replace(haystack, "=20", " ")
+    haystack = Replace(haystack, "=3D", "=")
+    haystack = Replace(haystack, "=09", " ")
+    haystack = Replace(haystack, "=C2", " ")
+    haystack = Replace(haystack, "=F6", "")
+    haystack = Replace(haystack, "=92", "'")
+    haystack = Replace(haystack, "=93", "'")
+    haystack = Replace(haystack, "=94", "'")
+    haystack = Replace(haystack, "=95", "-")
+    haystack = Replace(haystack, "=96", "")
+    haystack = Replace(haystack, "=E2=80=93", "-")
+    haystack = replace(haystack, "=E2=80=99", "")
+    haystack = replace(haystack, chr$(9), "")
+
+    return haystack
+
+end function
+
+
+' found at https://www.freevbcode.com/ShowCode.asp?ID=1037
+function striphtmltags(html as string) as string
+
+    dim bpos as integer = InStr(html, "<")
+    dim epos as integer = InStr(html, ">")
     dim dummy as string
-    dim j as integer = 0
-    dim i as integer = 1
-    dim f as integer
-    dim g as integer
+    
+    Do While bpos <> 0 And epos <> 0 And epos > bpos
+          dummy = Mid(html, bpos, epos - bpos + 1)
+          html = replace(html, dummy, "")
+          bpos = InStr(html, "<")
+          epos = InStr(html, ">")
+    Loop
+
+    ' Translate common escape sequence chars
+    html = Replace(html, "&nbsp;", " ")
+    html = Replace(html, "&amp;", "&")
+    html = Replace(html, "&quot;", "'")
+    html = Replace(html, "&#", "#")
+    html = Replace(html, "&lt;", "<")
+    html = Replace(html, "&gt;", ">")
+    html = Replace(html, "%20", " ")
+    html = LTrim(Trim(html))
+
+    return html
+
+end function
+
+function wordwrap2file(filename as string, swp as stringwrap) as boolean
+
+    dim dummy   as string  = ""
+    dim orgname as string  = ""
+    dim tempfolder as string  = ""
+    dim temp    as string  = ""
+    dim buffer  as string  = ""
+    dim linecnt as integer = 0
+    dim j       as integer = 0
+    dim i       as integer = 1
+    dim f       as long
     f = freefile
 
-    open filename for input as #f
-    open exepath + "\text.tmp" for output as #20
+    orgname = mid(filename, instrrev(filename, "\") + 1)
+    orgname = left(orgname, len(orgname) - 4) + ".txt"
+
+    ' filter html todo messy needs to be cleaned up
+    if instr(filename, ".mht") > 0 then
+        tempfolder = mid(filename, instrrev(filename, "\"))
+        tempfolder = exepath + mid(tempfolder, 1, instrrev(tempfolder, ".") - 1)
+        open filename for input as #f
+            do until eof(f)
+                line input #f, swp.lineitem
+                    ' remove frontpage thing sticks = to end of line
+                    if mid(swp.lineitem, len(swp.lineitem)) = "=" then
+                        swp.lineitem = mid(swp.lineitem, 1, len(swp.lineitem) - 1)
+                    end if
+                temp = temp + swp.lineitem
+            loop
+        close(f)
+
+        if instr(lcase(temp), "<body>") > 0 then
+            temp = mid(temp, instr(lcase(temp), "<body>"), instr(lcase(temp), "</body>") - instr(lcase(temp), "<body>") )
+        end if
+        if instr(lcase(temp), "<body ") > 0 then
+            temp = mid(temp, instr(lcase(temp), "<body "), instr(lcase(temp), "</body>") - instr(lcase(temp), "<body ") )
+        end if
+
+        temp = replace(temp, "</p>", "||")
+        temp = replace(temp, "</P>", "||")
+        temp = replace(temp, "<br>", "||")
+        temp = replace(temp, "<BR>", "||")
+        temp = replace(temp, "</span>", "||")
+        temp = replace(temp, "</SPAN>", "||")
+        temp = htmlcleanup(temp)
+        temp = striphtmltags(temp)
+        temp = replace(temp, "||", chr$(13) + chr$(10))
+
+        filename = exepath + "\html.tmp"
+        f = freefile
+        open filename for output as #f
+            print #f, trim(temp)
+        CLOSE(f)
+    end if
+
+    ' detect unicode utf16 endian big / little
+    f = freefile
+    Open filename For Binary Access Read As #f
+        If LOF(f) > 0 Then
+            buffer = String(LOF(f), 0)
+            Get #f, , buffer
+        End If
+    Close(f)
+    if instr(1, mid(buffer,1, 1), chr$(255)) > 0 and instr(1,  mid(buffer,2, 1), chr$(254)) > 0_
+       or instr(1, mid(buffer,1, 1), chr$(254)) > 0 and instr(1,  mid(buffer,2, 1), chr$(255)) then
+        open filename for input encoding "utf16" as #f
+    else
+        open filename for input as #f
+    end if
+
+    open tempfolder + "\" + orgname for output as #20
     do until eof(f)
         line input #f, swp.lineitem
         j = 0
         swp.linetemp = ""
+
+        if swp.filternonalphanumeric then
+            if isalphanumeric(swp.lineitem) = false then
+                swp.lineitem = ""
+                'print #20, ""
+                'goto skipprint:
+            end if
+        end if
+
         'cleanup string tab, etc
-        swp.lineitem = replace(swp.lineitem, chr$(9), "")
-        swp.lineitem = replace(swp.lineitem, "  ", " ")
+        'swp.lineitem = replace(swp.lineitem, "   ", " ")
+        'swp.lineitem = replace(swp.lineitem, "  ", " ")
+        swp.lineitem = replace(swp.lineitem, chr$(9), "  ")
 
         ' ghetto latin-1 support
         swp.lineitem = replace(swp.lineitem, chr$(130), ",")
@@ -1524,8 +1696,24 @@ function wordwrap2file(filename as string, swp as stringwrap) as boolean
         swp.lineitem = replace(swp.lineitem, chr$(148), chr$(34))
         swp.lineitem = replace(swp.lineitem, chr$(150), "-")
         swp.lineitem = replace(swp.lineitem, chr$(152), "~")
+        swp.lineitem = replace(swp.lineitem, "•", "-")
+        swp.lineitem = replace(swp.lineitem, "~", "-")
 
-        if len(swp.lineitem) > swp.linelength then
+        ' special case no space in line or multiple returns
+        if instr(swp.lineitem, " ") = 0 then
+            if len(swp.lineitem) > swp.linelength then
+                swp.lineitem = mid(swp.lineitem, 1, swp.linelength - 2)
+            end if
+            if len(swp.lineitem) = 0 then
+                linecnt += 1
+            end if
+            if linecnt > 1 then
+                linecnt = 0
+                goto skipprint:
+            end if
+        end if
+
+        if len(swp.lineitem) > swp.linelength and instrrev(swp.lineitem, " ") > swp.linelength * 1.2 then
             do while j <= fix(len(swp.lineitem) / swp.linelength)
                 i = 1
                 dummy = mid(swp.lineitem, j * swp.linelength + 1, swp.linelength)
@@ -1537,13 +1725,15 @@ function wordwrap2file(filename as string, swp as stringwrap) as boolean
                     end if
                     i += 1
                 loop
+
                 ' special case no wrapchar
                 if swp.wrapcharpos > 0 then
                     swp.linetemp = swp.linetemp + mid(dummy, 1, swp.wrapcharpos) + chr$(13) + chr$(10)_
                                     + trim(mid(dummy, swp.wrapcharpos, len(dummy)))
                 else
-                    ' note just chr$(13) truncates linetemp
-                    swp.linetemp = swp.linetemp + dummy + chr$(13) + chr$(10)
+                    ' note just chr$(13) truncates linetemp todo evaluate without chr$(10)
+                    'swp.linetemp = swp.linetemp + dummy + chr$(13) + chr$(10)
+                    swp.linetemp = swp.linetemp + dummy' + chr$(13)
                 end if
                 j += 1
                 ' brute force paragraphs
@@ -1555,9 +1745,14 @@ function wordwrap2file(filename as string, swp as stringwrap) as boolean
             loop
             swp.lineitem = swp.linetemp
         end if
+
         print #20, swp.lineitem
+skipprint:    
     loop
-    close
+    close #20
+    close(f)
+    delfile(exepath + "\html.tmp")
+
     return true
 
 end function
@@ -1586,24 +1781,11 @@ function arrayhighestvalue(needle as string, wc as wordtally) as integer
     return occurancemax
 end function
 
-' check if string contains alphanumeric value
-' courtesy counting_pine https://www.freebasic.net/forum/viewtopic.php?p=166250&hilit=isalphanum#p166250 
-function isalphanumeric(haystack as string) as boolean
-    dim i as integer
-    do
-        select case asc(mid(haystack, i, 1))
-            case asc("0") to asc("9"), asc("A") to asc("Z"), asc("a") to asc("z")
-            return true
-        end select
-        i += 1
-    loop until i > len(haystack)
-    return false
-end function
-
 function dictonary(filename as string, wc as wordtally) as string
+
     dim dummy   as string = ""
     dim fieldnr as integer = 0
-    dim         as integer tmp, f
+    dim         as long tmp, f
     recnr = 0
     dim commonwords as string = "a, an, and, any, all, at, be, but, by, can, for, from, i, if, in, make, more, no, not, of, off, on, the, then, this, to, yes, was, we, with"
     ' isolate words
