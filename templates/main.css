@@ -34,7 +34,7 @@
 
 /* navbar */
 .is-hidden {
-	 display: none;
+  display: none;
 }
 
 .container {
@@ -139,6 +139,7 @@
     top: 0.0rem;
     left: 0;
     width: 100%;
+    z-index: 1;
 }
 
 .navdarkmode {
@@ -355,6 +356,16 @@ table {
   border-collapse:collapse
 }
 
+/* only keep table column header on top when width is larger than */
+@media screen and (min-width: 1000px) {
+  th {
+    cursor: pointer;
+    /* sticky tip courtesy https://codepen.io/stephen-george-west/pen/rNpjXYL */
+    position: sticky;
+    top: -0.85em;
+    z-index: 2;
+  }
+}
 th {
   cursor: pointer;
 }
@@ -534,7 +545,7 @@ input.tablesearchboxdark:focus {
 .modal {
   display: none; /* Hidden by default */
   position: fixed; /* Stay in place */
-  z-index: 1; /* Sit on top */
+  z-index: 3; /* Sit on top */
   padding-top: 100px; /* Location of the box */
   left: 0;
   top: 0;
