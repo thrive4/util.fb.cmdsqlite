@@ -193,3 +193,44 @@ Function getimagemetric(filename As String) As boolean
 
 end function
 
+' parse .srt file
+function srt2sql(filename As String, srtData() As String, startTime() As String, endTime() As String, tbname as string = "", tabletype as string = "") as uinteger
+    Dim As UInteger x = 0 ' counter
+    Dim As String text
+    Dim As String dummy = ""
+    Dim As String startTimeStr, endTimeStr
+    
+    Dim As long f
+    f = FreeFile
+    Open filename For Input As #f
+
+    Do While Not EOF(f)
+        Line Input #f, text
+        If Len(text) > 0 Then
+            ' check start and end time
+            If InStr(text, " --> ") > 0 Then
+                ' split the line into start and end time
+                startTimeStr = Left(text, InStr(text, " --> ") - 1)
+                endTimeStr = Mid(text, InStr(text, " --> ") + 5)
+            Else
+                ' append the line to the current block
+                dummy &= text + "|"
+            End If
+        Else
+            ' end of a subtitle block, add it to the array
+            ReDim Preserve srtData(x) As String
+            ReDim Preserve startTime(x) As String
+            ReDim Preserve endTime(x) As String
+            srtData(x) = dummy
+            startTime(x) = startTimeStr
+            endTime(x) = endTimeStr
+            dummy = ""
+            x += 1
+        End If
+
+    Loop
+    Close #f
+
+    return x
+
+end function

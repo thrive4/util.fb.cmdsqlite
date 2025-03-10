@@ -1,11 +1,66 @@
+update v1.3 10/03/2025
+- started a baseline sqlite fts5 implementation
+  import datasources csv, json, folder, xml
+  and rundimentarty text and exif info specific filetypes
+  issues: fts5
+  'rank' is a reserved name so the fieldname needs to be renamed
+  there are issues with hyphen in table names ....
+- gradual implementation json data format escaping rules
+  import pjson (aka pretty json), single and multi line
+  with basic error handling
+- started a rundementary form of disk catalog format
+  drive label, folder, folder date, folder size
+  example: cmdsqlite e:\ catalog
+- added basic comment handling in .query comment character is # (hash)
+- added a number of sample .query files
+- added basic .txt import and encoding support utf16 and utf8 default 'ascii'
+  list version each line of text is record
+- added basic .srt import format
+  file, subtitlenr, starttime, endtime, text
+- added theme field to mp3 html export theme is last folder in path
+  exampe: theme = 'classic' from g:\data\mp3\classic\
+- added file metrics folder size, drive label, drive storage
+- added support database extension .sqlite used by some applications and browsers
+- removed ' in xml node names
+- regression checkpath (see 1.1) fixed again
+- more fixes to errorhandling csv import
+- fixed incorrect table defintion xml import
+- fixed preserve linefeed when converting .sql to .db
+- fixed issue with numerical data in json pattern "fieldname":123
+  becomes "fieldname":"123"
+- issue with wstr still open https://github.com/freebasic/fbc/issues/420
+  temporary hack check locale if not 'en' or 'nl' use wstr
+- updated sqlite3.dll v3.42.0 to v3.49.1
+- updated help files and readme.md where needed
+- slimmed down function explode
+- tweaked getmp3tag increase speed parsing mp3 tags
+- improved getfilesfromfolder and getfolders in utilfile.bas
+
+! experimental !
+notes regarding text import:
+
+generate index per file:
+cmdsqlite.exe f:\dev\freebasic\projects\cmdsqlite\data\indextest *.txt json index
+generate sql with content text per file:
+cmdsqlite.exe f:\dev\freebasic\projects\cmdsqlite\data\indextest *.txt sql exif
+generate sql with content text per file fts:
+cmdsqlite.exe f:\dev\freebasic\projects\cmdsqlite\data\indextest *.txt sql exif fts
+
+work in progress bom (utf8 and utf16) default = no pragma
+cmdsqlite>cmdsqlite.exe f:\dev\freebasic\projects\cmdsqlite\data\indextest *.txt sql exif utf8
+pragma encoding = utf8;
+
+cmdsqlite>cmdsqlite.exe f:\dev\freebasic\projects\cmdsqlite\data\indextest *.txt sql exif utf16
+pragma encoding = utf8;
+
 update v1.2 18/12/2023
-- intergrated mp3 album cover export
+- integrated mp3 album cover export
   from https://github.com/thrive4/util.fb.mp3cover
   added filesize and orientation image as field data
   to mp3cover.csv report
-- intergrated .mht convert (converts .mht to .html and .txt)
+- integrated .mht convert (converts .mht to .html and .txt)
   from https://www.freebasic.net/forum/viewtopic.php?p=288025
-- updated wordwrap2file some what better text formating
+- updated wordwrap2file some what better text formatting
 - added sticky table header for data tables
   sticky tip courtesy https://codepen.io/stephen-george-west/pen/rNpjXYL
 - updated help.ini with new functionality
@@ -41,4 +96,5 @@ update v1.1 02/11/2023
 - edits to help.ini all languages
 - added initial example with wikidata (sparql) as datasouce
   see wikidata.nfo (csv | json) xml is... problematic ...
+
 public release v1.0 06/09/2023

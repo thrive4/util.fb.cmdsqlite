@@ -3,11 +3,17 @@
 ' dir function and provides constants to use for the attrib_mask parameter
 #include once "vbcompat.bi"
 #include once "dir.bi"
-' disable filename globbing otherwise g:\* list files
-' when using command how ever conflicts with dir()
-' also odd this is used for 64bits but works with 32bits
-' Extern _dowildcard Alias "_dowildcard" As Long
-' Dim Shared _dowildcard As Long = 0
+
+' setup word counter
+type wordtally
+    as string  word(any)
+    as integer count(any)
+end type
+dim shared wc as wordtally
+common shared wclinenr as integer
+wclinenr = 0
+declare function arrayhighestvalue(needle as string, wc as wordtally) as integer
+declare function dictonary(filename as string, wc as wordtally) as string
 
 ' setup log
 dim shared logfile    as string
@@ -16,7 +22,7 @@ dim shared appname    as string
 dim shared appfile    as string
 dim shared usecons    as string
 dim shared exeversion as string
-dim shared taginfo(1 to 5) as string
+dim shared taginfo(1 to 6) as string
 
 ' note command(0) can arbitraly add the path so strip it
 appname = mid(command(0), instrrev(command(0), "\") + 1)
@@ -90,8 +96,8 @@ Function logentry(entrytype As String, logmsg As String) As Boolean
         close #f
     end if
 
-    if entrytype = "warning" and logtype = "verbose" then
-        exit function
+    if (entrytype = "warning" or entrytype = "notice") and logtype = "verbose" then
+        return true
     end if
 
     ' write to logfile
@@ -184,24 +190,147 @@ end function
 ' generic file functions
 ' ______________________________________________________________________________'
 
+
+' sample code for calling the function getfolders and getfilesfromfolder
+'ReDim As String ordinance(0)
+'getfilesfromfolder("i:\games\*", ordinance())
+'print UBound(ordinance)
+'For x As Integer = 1 To UBound(ordinance)
+'    Print ordinance(x)
+'Next
+
 ' list files in folder
-function getfilesfromfolder (filespec As String) as boolean
-    Dim As String filename = Dir(filespec, 1)
+function getfilesfromfolder(filespec As String, ordinance() As String) as uinteger
+    Dim As UInteger x      = 0 'counter
+    Dim As String filename = Dir(filespec, fbnormal, fbHidden and fbSystem and fbArchive and fbReadOnly)
+
     if len(filename) = 0 then print "path not found..." end if
     Do While Len(filename) > 0
+        x += 1
+        ReDim Preserve ordinance(x) 'create new array element
+        ordinance(x) = filename
         filename = Dir()
     Loop
-    return true
+
+    return x
+
 end function
 
 ' list folders
-function getfolders (filespec As String) as boolean
-    Dim As String filename = Dir(filespec, fbDirectory)
+function getfolders (filespec As String, ordinance() As String) as uinteger
+    Dim As UInteger x = 0 'counter
+    var mask          = fbDirectory or fbHidden or fbSystem or fbArchive or fbReadOnly
+    var attrib        = 0
+    var filename      = dir( filespec, mask, attrib )
+    
     if len(filename) = 0 then print "path not found..." end if
-    Do While Len(filename) > 0
-        filename = Dir()
-    Loop
-    return true
+    ' show directory regardless if it is system, hidden, read-only, or archive
+    while(filename > "")
+        if(attrib and fbDirectory) and (filename <> "." and filename <> "..") then
+            x += 1
+            ReDim Preserve ordinance(x) 'create new array element
+            ordinance(x) = filename
+        end if
+        filename= dir(attrib)
+    wend
+
+    return x
+
+end function
+
+function getdrivelabel(drive as string) as string
+    Dim As ZString * 1024 deviceName
+    Dim As ZString * 1024 volumeName
+    QueryDosDevice(drive, deviceName, 1024)
+    GetVolumeInformation(drive, volumeName, 1024, 0, 0, 0, 0, 0)
+    return volumeName
+end function
+
+function getdrivestorage(drive as string, metric as string) as ULongInt
+    Dim As ULARGE_INTEGER freeBytesAvailable
+    Dim As ULARGE_INTEGER totalNumberOfBytes
+    Dim As ULARGE_INTEGER totalNumberOfFreeBytes
+    If GetDiskFreeSpaceEx(drive, @freeBytesAvailable, @totalNumberOfBytes, @totalNumberOfFreeBytes) Then
+        select case metric
+            case "capacity"
+                return totalNumberOfBytes.QuadPart
+            case "space"
+                return totalNumberOfFreeBytes.QuadPart
+            case else
+                return 0
+        end select
+    Else
+    '    Print "Error: "; GetLastError()
+        return 0
+    End If
+end function
+
+function convertbytesize(totalsize as longint) as string
+
+    dim size as string
+    if totalsize < 1024 then
+        size = str(totalsize) & " bytes"
+    elseif totalsize < 1048576 then
+        size = format(totalsize / 1024.0, "0.00") & " KB"
+    elseif totalsize < 1073741824 then
+        size = format(totalsize / 1048576.0, "0.00") & " MB"
+    else
+        size = format(totalsize / 1073741824.0, "0.00") & " GB"
+    end if
+
+    return size
+
+end function
+
+' get folder size
+function foldersize(folder as string) as longint
+
+    redim path(1 to 1) As string
+    dim file           as string
+    dim fileext        as string
+    dim maxfiles       as integer
+    dim totalsize      as longint = 0 
+    dim as integer i = 1, n = 1, attrib
+
+    #ifdef __FB_LINUX__
+      const pathchar = "/"
+    #else
+      const pathchar = "\"
+    #endif
+
+    ' read dir recursive starting directory
+    path(1) = folder 
+    if( right(path(1), 1) <> pathchar) then
+        file = dir(path(1), fbNormal or fbDirectory, @attrib)
+        if( attrib and fbDirectory ) then
+            path(1) += pathchar
+        end if
+    end if
+
+    while i <= n
+    file = dir(path(i) + "*" , fbNormal or fbDirectory, @attrib)
+        while file > ""
+            if (attrib and fbDirectory) then
+                if file <> "." and file <> ".." then
+                    ' limit recursive if starting folder is root
+                    'if len(path(1)) > 3 then
+                        n += 1
+                        redim preserve path(1 to n)
+                        path(n) = path(i) + file + pathchar
+                    'end if
+                end if
+            else
+                fileext = lcase(mid(file, instrrev(file, ".")))
+                    totalsize += filelen(path(i) & file)
+                    maxfiles += 1
+            end if
+            file = dir(@attrib)
+        wend
+        i += 1
+    wend
+
+    return totalsize
+
 end function
 
 ' create a new file
@@ -392,7 +521,13 @@ sub displayhelp(locale as string)
     Open exepath + "\conf\" + locale + "\help.ini" For input As #f
     Do Until EOF(f)
         Line Input #f, dummy
-        print wstr(dummy)
+        ' hack issue with wstr and cmdline '| more' see ticket
+        ' https://github.com/freebasic/fbc/issues/420
+        if locale <> "en" and locale <> "nl" then
+            print wstr(dummy)
+        else
+            print dummy
+        end if
     Loop
     close f
 
@@ -526,8 +661,147 @@ Function base64decode(s As String) As String
     Return mD
 End Function
 
+' cheap text to sql export
+Function txt2sql(filename as string, tbname as string = "", tabletype as string = "", inserttype as string = "complete") As boolean
+
+    Dim f       As long
+    Dim cnt     As integer = 0
+    Dim fieldnr As integer = 0
+    dim chk     as boolean = false
+    dim dbchk   as boolean = false
+    Dim text    As String
+    dim dummy   as string = ""
+    ' used for "... , ..." structure
+    dim i       as integer = 1
+    dim b       as integer = 0
+    dim e       as integer = 0
+    dim p       as string  = ""
+    dim temp    as string
+
+    ' filter out ext
+    tbname = left(filename, instrrev(filename, ".") - 1)
+    ' filter out preceding path if present
+    tbname = lcase(mid(tbname, instrrev(tbname, "\") + 1))
+    ' filter out space
+    tbname = replace(tbname, " ", "")    
+
+    if FileExists(filename) = false then
+        logentry("fatal", "file not found or missing..'" & filename & "'")
+    end if
+
+    f = FreeFile
+    Open filename For input As #f
+    print "begin transaction;"
+    if tabletype = "fts" then
+        print "create virtual table if not exists '" + tbname + "' using fts5(";        
+    else
+        print "create table if not exists '" + tbname + "' ("
+    end if
+
+    Do Until EOF( f )
+       Line Input #f, text
+        ' create table defintion
+        if cnt = 0 then
+            ReDim As String ordinance(0)
+            ' use strict cleaning for now
+            text = replace(text, "'", "")
+            text = replace(text, chr$(34), "")
+            explode(text, "", ordinance())
+            For x As Integer = 1 To UBound(ordinance)
+                if tabletype = "fts" then
+                '    if x <> UBound(ordinance) then
+                '        ' rank is a reserved fieldname with fts5
+                '        if lcase(trim(ordinance(x))) = "rank" then ordinance(x) = "ranked" end if
+                '        Print "'" + lcase(trim(ordinance(x))) + "'," 
+                '    else
+                '        Print "'" + lcase(trim(ordinance(x))) + "'"
+                '    end if
+                    print
+                    print "'text'"    
+                else
+                    if x <> UBound(ordinance) then
+                        Print "'text'     text,"
+                    else
+                        Print "'text'     text"
+                    end if
+                end if
+            Next
+            fieldnr = UBound(ordinance)
+            print ");"
+        else
+            ' create inserts   
+            if inserttype = "complete" then
+                dummy += text + chr$(10) + chr$(13)
+                'dummy += text + "<br>"
+            else
+                dummy = ""
+                ReDim As String ordinance(0)
+                ' work around data "... , ..." structure still if-y...
+                if instr(text, chr$(34)) > 0 then
+                    temp = text
+                    do
+                        p = mid(text,i,1)
+                        if p = chr$(34) and b > 0 and e = 0 then
+                            e = i
+                            dummy = mid(text, b, e - (b - 1))
+                            dummy = replace(dummy, ",", "|\|")
+                            temp = replace(temp,  mid(text, b, e - (b - 1)) , dummy)
+                            dummy = ""
+                            b = 0
+                            p = ""
+                        end if
+                        if p = chr$(34) and b = 0 then
+                            b = i
+                            e = 0
+                            p = ""
+                        end if
+                        i += 1
+                    loop until i > len(text)
+                    text = temp
+                    ' reset workaround
+                    b = 0 : e = 0 : i = 0 : p = "" : dummy = ""
+                end if
+                ' remove trailing comma at end of record
+                if mid(text, len(text) - 1) = chr$(34) + "," then
+                    text = mid(text, 1, len(text) - 1)
+                end if
+                explode(text, "", ordinance())
+                if UBound(ordinance) <> fieldnr then
+                    logentry("fatal", "error unequal amount of fields at line " & cnt + 1 & " " + replace(text, "|", ""))
+                end if
+                For x As Integer = 1 To UBound(ordinance)
+                    ' restore data "... , ..." structure
+                    'ordinance(x) = replace(trim(ordinance(x)), chr$(34), "")
+                    'ordinance(x) = replace(trim(ordinance(x)), "|\|", ",")
+                    ' check validty data 
+                    if instr(trim(ordinance(x)), "'") > 0 then
+                        logentry("warning", "found unescaped ' modified with '' at line " & cnt + 1 & " " + text)
+                    end if    
+                    if x <> UBound(ordinance) then
+                        dummy += "'" + replace(trim(ordinance(x)), "'", "''") + "',"
+                    else
+                        dummy += "'" + replace(trim(ordinance(x)), "'", "''") + "'"
+                    end if
+                Next
+                Print "insert into '" + tbname + "' values (" + dummy + ");" 
+            end if
+        end if
+        cnt += 1
+    Loop
+    if inserttype = "complete" then
+        dummy = replace(dummy, "'", "''")
+        Print "insert into '" + tbname + "' values ('" + dummy + "');" 
+    end if
+    print "commit;"
+    close(f)
+    logentry("notice", "exported text " + filename + " to sql with tablename " + tbname + " #recs " & cnt)
+
+    return true
+    
+end function
+
 ' cheap csv to sql export
-Function csv2sql(filename as string, tbname as string = "") As boolean
+Function csv2sql(filename as string, tbname as string = "", tabletype as string = "") As boolean
 
     Dim f       As long
     Dim cnt     As integer = 0
@@ -555,22 +829,36 @@ Function csv2sql(filename as string, tbname as string = "") As boolean
     f = FreeFile
     Open filename For input As #f
     print "begin transaction;"
-    print "create table if not exists '" + tbname + "' ("
+    if tabletype = "fts" then
+        print "create virtual table if not exists '" + tbname + "' using fts5("        
+    else
+        print "create table if not exists '" + tbname + "' ("
+    end if
 
     Do Until EOF( f )
        Line Input #f, text
         ' create table defintion
         if cnt = 0 then
             ReDim As String ordinance(0)
-            ' use strict cleaining for now
+            ' use strict cleaning for now
             text = replace(text, "'", "")
             text = replace(text, chr$(34), "")
             explode(text, ",", ordinance())
             For x As Integer = 1 To UBound(ordinance)
-                if x <> UBound(ordinance) then
-                    Print "'" + lcase(trim(ordinance(x))) + "'" + space(20 - len(trim(ordinance(x)))) + "text" + "," 
+                if tabletype = "fts" then
+                    if x <> UBound(ordinance) then
+                        ' rank is a reserved fieldname with fts5
+                        if lcase(trim(ordinance(x))) = "rank" then ordinance(x) = "ranked" end if
+                        Print "'" + lcase(trim(ordinance(x))) + "'," 
+                    else
+                        Print "'" + lcase(trim(ordinance(x))) + "'"
+                    end if
                 else
-                    Print "'" + lcase(trim(ordinance(x))) + "'" + space(20 - len(trim(ordinance(x)))) + "text" 
+                    if x <> UBound(ordinance) then
+                        Print "'" + lcase(trim(ordinance(x))) + "'" + space(20 - len(trim(ordinance(x)))) + "text" + "," 
+                    else
+                        Print "'" + lcase(trim(ordinance(x))) + "'" + space(20 - len(trim(ordinance(x)))) + "text" 
+                    end if
                 end if
             Next
             fieldnr = UBound(ordinance)
@@ -610,7 +898,7 @@ Function csv2sql(filename as string, tbname as string = "") As boolean
             end if
             explode(text, ",", ordinance())
             if UBound(ordinance) <> fieldnr then
-                    logentry("fatal", "error unequal amount of fields at line " & cnt + 1 & " " + text)
+                logentry("fatal", "error unequal amount of fields at line " & cnt + 1 & " " + replace(text, "|", ""))
             end if
             For x As Integer = 1 To UBound(ordinance)
                 ' restore data "... , ..." structure
@@ -639,16 +927,19 @@ Function csv2sql(filename as string, tbname as string = "") As boolean
 end function
 
 ' cheap json to sql export
-Function json2sql(filename as string, tbname as string = "") As boolean
+Function json2sql(filename as string, tbname as string = "", tabletype as string = "") As boolean
 
     Dim f       As long
     dim g       as long
     Dim cnt     As integer = 0
     Dim fieldnr As integer = 0
+    'dim recnr   as integer = 0
     dim chk     as boolean = false
     dim dbchk   as boolean = false
     Dim text    As String
     dim dummy   as string = ""
+    dim dummy2  as string = ""    
+
     ' filter out ext
     tbname = left(filename, instrrev(filename, ".") - 1)
     ' filter out preceding path if present
@@ -658,50 +949,149 @@ Function json2sql(filename as string, tbname as string = "") As boolean
         logentry("fatal", "file not found or missing..'" & filename & "'")
     end if
 
+    ' handle one liner json
     f = FreeFile
     Open filename For input As #f
-
-    ' handle one liner json
-    Do Until EOF( f )
-        Line Input #f, text
-        cnt +=1
-    loop
-    if cnt = 1 then
-        g = freefile
-        open exepath + "\temp.json" for output as #g
-            text = replace(text, "[", "[" + chr$(13) + chr$(10))
-            text = replace(text, "},", "}," + chr$(13) + chr$(10))
-            text = replace(text, "]", chr$(13) + chr$(10) + "]" + chr$(13) + chr$(10))
-            print #g, text
-        close(g)
-        logentry ("notice", "converted one line json " + filename)
-        filename = exepath + "\temp.json"
-    end if
+        cnt = 0
+        Do Until EOF( f )
+            Line Input #f, text
+            cnt +=1
+        loop
+        recnr = cnt
+        if cnt = 1 then
+            g = freefile
+            open exepath + "\temp.json" for output as #g
+                text = replace(text, "[", "[" + chr$(13) + chr$(10))
+                text = replace(text, "},", "}," + chr$(13) + chr$(10))
+                text = replace(text, "]", chr$(13) + chr$(10) + "]" + chr$(13) + chr$(10))
+                print #g, text
+            close(g)
+            logentry ("notice", "converted one line json " + filename)
+            filename = exepath + "\temp.json"
+        end if
     close(f)
+
+    ' handle pjson aka pretty json
+    if cnt > 1 then
+        f = FreeFile
+        Open filename For input As #f
+            cnt   = 0
+            recnr = 0
+            Do Until EOF( f )
+                Line Input #f, text
+                cnt +=1
+                text = trim(text)
+                if right(text, 2) = "}," and len(text) > 2 then
+                    ' multi line json but not pjson
+                    goto skippjson
+                    close(f)
+                else
+                    ' hack remove spaces after colon : (is allowed according to json rfc ....)
+                    ' todo expand beyond 3 spaces after colon
+                    text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
+                    text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
+                    text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
+                    select case text
+                        case "["
+                            dummy = "[" + chr$(13,10)
+                        case "{"
+                            dummy += "{"
+                        case "}"
+                            dummy += "}" + chr$(13,10)
+                        case "]"
+                            dummy += "]"
+                        case "},"
+                            dummy += "}," + chr$(13,10)
+                            recnr += 1
+                        case else
+                            if right(text, 1) <> "," then
+                                text = text + ","
+                            end if
+                            if right(text, 2) <> chr$(34) + "," then
+                                text = mid(text, 1, len(text) - 1) + chr$(34) + ","
+                            end if
+                            ' flatten nested json array
+                            if instr(text, ":") = 0 and right(text, 1) = "," then
+                                text = replace(text, chr$(34), "")
+                            end if
+                            dummy += text
+                    end select    
+                end if
+                ' cleanup records
+                dummy = replace(dummy, "[" + chr$(34) + ",", "")
+                ' todo fix still leaves an extra comma in flat nested array
+                dummy = replace(dummy, "],", chr$(34) + ",")
+                dummy = replace(dummy, ":" + chr$(34) + chr$(34), ":" + chr$(34))
+                dummy = replace(dummy, "[]", "null")
+                dummy2 += dummy
+                dummy = ""
+            loop
+            g = freefile
+            open exepath + "\temp.json" for output as #g
+                print #g, dummy2
+            close(g)
+            logentry ("notice", "converted pretty json " + filename)
+            logentry ("notice", "exported approximatly " & recnr + 1 & " records") 
+            filename = exepath + "\temp.json"
+        end if
+    close(f)
+
+skippjson:
+
+    print "begin transaction;"
+    ' create table defintion
+    if tabletype = "fts" then
+        print "create virtual table if not exists '" + tbname + "' using fts5("        
+    else
+        print "create table if not exists '" + tbname + "' ("
+    end if
     f = FreeFile
     Open filename For input As #f
     cnt = 0
-
-    print "begin transaction;"
-    print "create table if not exists '" + tbname + "' ("
-
-    ' create table defintion
     Do Until EOF( f )
        Line Input #f, text
-        ' replace null values json
+' patterns maybe use to set field type numeric
+' ":123 > ":"123
+' 123} > 123"}
+' 123, > 123",
+        ' replace null values
         if instr(text, chr$(34) + ":null") > 0 then
             text = replace(text, chr$(34) + ":null", chr$(34) + ":" + chr$(34) + "null" + chr$(34))
             logentry ("warning", "replaced null value" + text)
         end if
+        ' hack remove spaces after colon : (is allowed according to json rfc ....)
+        ' todo expand beyond 3 spaces after colon
+        text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
+        text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
+        text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
+        logentry ("warning", "replaced space after colon" + text)
         if cnt = 1 then
             ReDim As String ordinance(0)
             explode(text, chr$(34) + "," + chr$(34), ordinance())
             For x As Integer = 1 To UBound(ordinance)
+
+' catch last numerical field end record todo evaluate
+if instr(ordinance(x), chr$(34) + ":" + chr$(34)) = 0 then
+print ordinance(x)
+    ordinance(x) = replace(ordinance(x), ":", ":" + chr$(34)) 
+    ordinance(x) = replace(ordinance(x), "}", chr$(34) + "}") 
+end if
+
                 dummy = lcase(mid(trim(ordinance(x)), 3, instr(trim(ordinance(x)), chr$(34) + ":" + chr$(34)) - 3))
-                if x <> UBound(ordinance) then
-                    Print "'" + dummy + "'" + space(20 - len(dummy)) + "text" + "," 
+                if tabletype = "fts" then
+                    ' rank is a reserved fieldname with fts5
+                    if dummy = "rank" then dummy = "ranked" end if
+                    if x <> UBound(ordinance) then
+                        Print "'" + dummy + "'," 
+                    else
+                        Print "'" + dummy + "'"
+                    end if
                 else
-                    Print "'" + dummy + "'" + space(20 - len(dummy)) + "text" 
+                    if x <> UBound(ordinance) then
+                        Print "'" + dummy + "'" + space(20 - len(dummy)) + "text" + "," 
+                    else
+                        Print "'" + dummy + "'" + space(20 - len(dummy)) + "text" 
+                    end if
                 end if
             Next
             fieldnr = UBound(ordinance)
@@ -714,7 +1104,7 @@ Function json2sql(filename as string, tbname as string = "") As boolean
     ' create inserts    
     f = FreeFile
     Open filename For input As #f
-    cnt = 0
+    cnt     = 0
     Do Until EOF( f )
        Line Input #f, text
         ' replace null values json
@@ -722,6 +1112,16 @@ Function json2sql(filename as string, tbname as string = "") As boolean
             text = replace(text, chr$(34) + ":null", chr$(34) + ":" + chr$(34) + "null" + chr$(34))
             logentry ("warning", "replaced null value" + text)
         end if
+        ' hack remove spaces after colon : (is allowed according to json rfc ....)
+        ' todo expand beyond 3 spaces after colon
+        text = replace(text, chr$(34) + ": ", chr$(34) + ":")
+        text = replace(text, chr$(34) + ": ", chr$(34) + ":")
+        text = replace(text, chr$(34) + ": ", chr$(34) + ":")
+        ' hack for pjson todo evaluate (dramatic speedbump)
+        ' old location line 743 / 744 before writing temp file but slows down
+        ' parsing quite substanialy
+        text = replace(text, chr$(34) + ",}", chr$(34) + "}")
+
         if cnt > 0 then
             dummy = "'"
             ReDim As String ordinance(0)
@@ -731,6 +1131,12 @@ Function json2sql(filename as string, tbname as string = "") As boolean
                 logentry ("warning", "number of field(s) and value(s) do not match " + text)
             end if
             For x As Integer = 1 To UBound(ordinance)
+
+' catch last numerical field end record todo evaluate
+if instr(ordinance(x), chr$(34) + ":" + chr$(34)) = 0 then
+    ordinance(x) = replace(ordinance(x), ":", ":" + chr$(34)) 
+    ordinance(x) = replace(ordinance(x), "}", chr$(34) + "}") 
+end if
                 ' unescape double quote if needed
                 ordinance(x) = replace(ordinance(x), "\" + chr$(34), chr$(34))
                 ordinance(x) = replace(ordinance(x), "'", "''")                        
@@ -745,7 +1151,17 @@ Function json2sql(filename as string, tbname as string = "") As boolean
                     END IF
                 end if
             Next
+
             IF dummy <> "''" then
+                ' handle missing fields (allowed in json) see:
+                ' https://noobtomaster.com/jackson/handling-different-json-data-types-null-values-and-missing-fields/
+                dummy2 = ""
+                if UBound(ordinance) < fieldnr then
+                    For x As Integer = UBound(ordinance) to fieldnr - 1
+                        dummy2 += ",null"
+                    next
+                dummy += dummy2
+                end if
                 ' work around te restore null value
                 ' todo find better solution see listjson
                 dummy = replace(dummy, "'null'", "null")
@@ -764,7 +1180,7 @@ Function json2sql(filename as string, tbname as string = "") As boolean
 end function
 
 ' cheap xml to sql export
-Function xml2sql(filename as string, tbname as string = "", element as string = "") As boolean
+Function xml2sql(filename as string, tbname as string = "", element as string = "", tabletype as string = "") As boolean
 
     Dim f       As long
     Dim cnt     As integer = 0
@@ -789,7 +1205,6 @@ Function xml2sql(filename as string, tbname as string = "", element as string = 
     f = FreeFile
     Open filename For input As #f
     print "begin transaction;"
-    'print "create table if not exists '" + tbname + "' ("
 
     Do Until EOF( f )
        Line Input #f, text
@@ -822,7 +1237,21 @@ Function xml2sql(filename as string, tbname as string = "", element as string = 
                         fname = mid(text, instr(text, "<") + 1, instr(trim(text), ">") - 2)
                         ' create table defintion
                         if tbchk = false then
-                            dummy2 += "'" + lcase(fname) + "'" + space(20 - len(fname)) + tbname + "," + chr(13) + chr$(10)
+                            if tabletype = "fts" then
+                                ' rank is a reserved fieldname with fts5
+                                if fname = "rank" then fname = "ranked" end if
+                                if fname <> "" then
+                                    dummy2 += "'" + fname + "'," + chr(13) + chr$(10) 
+                                else
+                                    dummy2 += "'" + fname + "'" + chr(13) + chr$(10)
+                                end if
+                            else
+                                if fname <> "" then
+                                    dummy2 += "'" + fname + "'" + space(20 - len(fname)) + "text" + "," + chr(13) + chr$(10) 
+                                else
+                                    dummy2 += "'" + fname + "'" + space(20 - len(fname)) + "text" + chr(13) + chr$(10) 
+                                end if
+                            end if
                         end if
                         ' create inserts
                         fvalue = mid(text, instr(text, ">") + 1, instr(trim(text), "</") - (len(fname) + 3))
@@ -844,7 +1273,11 @@ Function xml2sql(filename as string, tbname as string = "", element as string = 
         end select
     Loop
     close(f)
-    dummy2 = "create table if not exists '" + tbname + "' (" + chr#(13) + chr$(10) + dummy2
+    if tabletype = "fts" then
+        dummy2 = "create virtual table if not exists '" + tbname + "' using fts5(" + chr#(13) + chr$(10) + dummy2
+    else
+        dummy2 = "create table if not exists '" + tbname + "' (" + chr#(13) + chr$(10) + dummy2
+    end if
     print mid(dummy2, 1, len(dummy2) - 3) + chr(13) + chr$(10) + ");"
     print mid(dummy, 1, len(dummy) - 4)
     print "commit;"
@@ -872,6 +1305,7 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
     dim                as long tmp, f
     dim dummy          as string
     dim dummy2         as string
+    dim tbname         as string
     dim file           as string
     dim fileext        as string
     dim fsize          as long
@@ -910,13 +1344,15 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                 print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '2')" + chr$(34) + ";>title</a>"
                 print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '3')" + chr$(34) + ";>album</a>"
                 print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '4')" + chr$(34) + ";>genre</a>"
-                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '5')" + chr$(34) + ";>year</a>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '5')" + chr$(34) + ";>theme</a>"
+                print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '6')" + chr$(34) + ";>year</a>"
                 print "     </div></div>"
                 print "   </th>"
                 print "   <th>artist</th>"
                 print "   <th>title</th>"
                 print "   <th>album</th>"
                 print "   <th>genre</th>"
+                print "   <th>theme</th>"
                 print "   <th>year</th>"
                 print "  </tr></thead>"
             else
@@ -931,7 +1367,7 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                     print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '3')" + chr$(34) + ";>coverheight</a>"
                     print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '4')" + chr$(34) + ";>orientation</a>"
                     print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '5')" + chr$(34) + ";>filesize</a>"
-                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '5')" + chr$(34) + ";>thumbnail</a>"
+                    print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '6')" + chr$(34) + ";>thumbnail</a>"
                     print "     </div></div>"
                     print "   </th>"
                     print "   <th>filename</th>"
@@ -1003,14 +1439,14 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                                 argc(2) = "album"
                                 argc(3) = "year"
                                 argc(4) = "genre"
-                                argc(5) = "nop"
+                                argc(5) = "theme"
 
                                 argv(0) = taginfo(1)
                                 argv(1) = taginfo(2)
                                 argv(2) = taginfo(3)
                                 argv(3) = taginfo(4)
                                 argv(4) = taginfo(5)
-                                argv(5) = "nop"
+                                argv(5) = taginfo(6)
                             else
                                 if (instr(filterext, ".jpg") > 0 or instr(filterext, ".png") > 0) and htmloutput = "exif" then
                                     getimagemetric(path(i) + file)
@@ -1044,6 +1480,26 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                                 end if
                             end if
 
+                            ' get text in file if needed
+                            if instr(filterext, ".txt") > 0 and htmloutput = "exif" then
+                                argc(5) = "content"
+                                dummy   = ""
+                                argv(5) = ""
+                                tmp = readfromfile(path(i) + file)
+                                Do Until EOF(tmp)
+                                    Line Input #tmp, dummy
+                                    argv(5) += dummy + chr$(13) + chr$(10)
+                                Loop
+                                close(tmp)
+                            end if
+
+                            ' create index from text files import
+                            if instr(filterext, ".txt") > 0 and htmloutput = "index" then
+                                argc(5) = "dictionary"
+                                'dim wc as wordtally
+                                argv(5) = dictonary(path(i) + file, wc)
+                            end if
+
                             For j As Integer = 0 To 5
                                 redim preserve record.fieldname(0 to recnr + 5)
                                 redim preserve record.fieldvalue(0 to recnr + 5)
@@ -1062,6 +1518,7 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                                           + "<td>" + taginfo(2) + "</td>" _
                                           + "<td>" + taginfo(3) + "</td>" _
                                           + "<td>" + taginfo(5) + "</td>" _
+                                          + "<td>" + taginfo(6) + "</td>" _
                                           + "<td>" + taginfo(4) + "</td>" _
                                           + "</tr>"
                             '                    print ".. adding " + taginfo(1) + " - " +  taginfo(2)
@@ -1238,248 +1695,21 @@ Function readini(filename as string) as boolean
 return true
 end function
 
-' code by squall4226
-' see https://www.freebasic.net/forum/viewtopic.php?p=149207&hilit=user+need+TALB+for+album#p149207
-Function getmp3tag(searchtag As String, fn As String) As String
-   'so we can avoid having the user need TALB for album, TIT2 for title etc, although they are accepted
-   Dim As Integer skip, offset' in order to read certain things right
-   Dim As UInteger sig_to_find, count, maxcheck = 100000
-   dim as long fnum
-   dim as UShort tag_length
-   Dim As UShort unitest, mp3frametest
-   Dim As String tagdata
-
-   Select Case UCase(searchtag)
-        Case "HEADER", "ID3"
-            searchtag = "ID3" & Chr(&h03)
-        Case "TITLE", "TIT2"
-            searchtag = "TIT2"
-        Case "ARTIST", "TPE1"
-            searchtag = "TPE1"
-        Case "ALBUM", "TALB"
-            searchtag = "TALB"
-        Case "COMMENT", "COMM"
-            searchtag = "COMM"
-        Case "COPYRIGHT", "TCOP"
-            searchtag = "TCOP"
-        Case "COMPOSER", "TCOM"
-            searchtag = "TCOM"
-        Case "BEATS PER MINUTE", "BPM", "TPBM"
-            searchtag = "TBPM"
-        Case "PUBLISHER", "TPUB"
-            searchtag = "TPUB"
-        Case "URL", "WXXX"
-            searchtag = "WXXX"
-        Case "PLAY COUNT" "PCNT"
-            searchtag = "PCNT"
-        Case "GENRE", "TCON"
-            searchtag = "TCON"
-        Case "ENCODER", "TENC"
-            searchtag = "TENC"
-        Case "TRACK", "TRACK NUMBER", "TRCK"
-            searchtag = "TRCK"
-        Case "YEAR", "TYER"
-            searchtag = "TYER"      
-        'Special, in this case we will return the datasize if present, or "-1" if no art
-        Case "PICTURE", "APIC"
-            searchtag = "APIC"
-            'Not implemented yet!
-        Case Else
-            'Tag may be invalid, but search anyway, there are MANY tags, and we have error checking
-   End Select
-
-   fnum = FreeFile
-   Open fn For Binary Access Read As #fnum
-   If Lof(fnum) < maxcheck Then maxcheck = Lof(fnum)
-   For count = 0 to maxcheck Step 1
-        Get #fnum, count, sig_to_find
-        If sig_to_find = Cvi(searchtag) Then
-             If searchtag = "ID3" & Chr(&h03) Then
-                Close #fnum
-                Return "1" 'Because there is no data here, we were just checking for the ID3 header
-             EndIf
-             'test for unicode
-             Get #fnum, count+11, unitest         
-             If unitest = &hFEFF Then 'unicode string
-                skip = 4
-                offset = 13           
-             Else 'not unicode string
-                skip = 0
-                offset = 10            
-             EndIf
-             
-             Get #fnum, count +7, tag_length 'XXXXYYYZZ Where XXXX is the TAG, YYY is flags or something, ZZ is size
-
-             If tag_length-skip < 1 Then
-                Close #fnum
-                Return "ERROR" 'In case of bad things
-             EndIf
-             
-             Dim As Byte dataget(1 To tag_length-skip)
-             Get #fnum, count+offset, dataget()
-             
-             For i As Integer = 1 To tag_length - skip
-                if dataget(i) < 4 then dataget(i) = 0 ' remove odd characters
-                If dataget(i) <> 0 Then tagdata + = Chr(dataget(i)) 'remove null spaces from ASCII data in UNICODE string
-             Next
-        End If
-        If tagdata <> "" then exit For ' stop searching!
-   Next
-   Close #fnum
-   
-   If Len(tagdata) = 0 Then
-        'If the tag was just not found or had no data then "----"
-        tagdata = "----"
-   EndIf
-
-   Return tagdata
-
-End Function
-
-' get base mp3 info
-function getmp3baseinfo(fx1File as string) as boolean
-    taginfo(1) = getmp3tag("artist",fx1File)
-    taginfo(2) = getmp3tag("title", fx1File)
-    taginfo(3) = getmp3tag("album", fx1File)
-    taginfo(4) = getmp3tag("year",  fx1File)
-    taginfo(5) = getmp3tag("genre", fx1File)
-    if taginfo(1) <> "----" and taginfo(2) <> "----" then
-        'nop
-    else    
-        taginfo(1) = mid(left(fx1File, len(fx1File) - instr(fx1File, "\") -1), InStrRev(fx1File, "\") + 1, len(fx1File))
-        taginfo(2) = ""
-    end if                
-    return true
-end function
-
-' MD5 encrypt from the Wikipedia page "MD5"
-' compile with: fbc -s console
-' from https://rosettacode.org/wiki/MD5/Implementation#FreeBASIC
-' note md5 is not reversible, at least it shouldn't be...
-' added basic file i/o thrive4 2022
-
-' macro for a rotate left
-#Macro ROtate_Left (x, n) ' rotate left
-  (x) = (x) Shl (n) + (x) Shr (32 - (n))
-#EndMacro
-
-Function MD5(test_str As String) As String
-
-    Dim As String message = test_str   ' strings are passed as ByRef's
-
-    Dim As UByte sx, s(0 To ...) = { 7, 12, 17, 22,  7, 12, 17, 22,  7, 12, _
-    17, 22,  7, 12, 17, 22,  5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20, _
-    5,  9, 14, 20,  4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23,  4, 11, _
-    16, 23,  6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21 }
-
-    Dim As UInteger<32> K(0 To ...) = { &Hd76aa478, &He8c7b756, &H242070db, _
-    &Hc1bdceee, &Hf57c0faf, &H4787c62a, &Ha8304613, &Hfd469501, &H698098d8, _
-    &H8b44f7af, &Hffff5bb1, &H895cd7be, &H6b901122, &Hfd987193, &Ha679438e, _
-    &H49b40821, &Hf61e2562, &Hc040b340, &H265e5a51, &He9b6c7aa, &Hd62f105d, _
-    &H02441453, &Hd8a1e681, &He7d3fbc8, &H21e1cde6, &Hc33707d6, &Hf4d50d87, _
-    &H455a14ed, &Ha9e3e905, &Hfcefa3f8, &H676f02d9, &H8d2a4c8a, &Hfffa3942, _
-    &H8771f681, &H6d9d6122, &Hfde5380c, &Ha4beea44, &H4bdecfa9, &Hf6bb4b60, _
-    &Hbebfbc70, &H289b7ec6, &Heaa127fa, &Hd4ef3085, &H04881d05, &Hd9d4d039, _
-    &He6db99e5, &H1fa27cf8, &Hc4ac5665, &Hf4292244, &H432aff97, &Hab9423a7, _
-    &Hfc93a039, &H655b59c3, &H8f0ccc92, &Hffeff47d, &H85845dd1, &H6fa87e4f, _
-    &Hfe2ce6e0, &Ha3014314, &H4e0811a1, &Hf7537e82, &Hbd3af235, &H2ad7d2bb, _
-                                                              &Heb86d391 }
-
-    ' Initialize variables
-    Dim As UInteger<32> A, a0 = &H67452301
-    Dim As UInteger<32> B, b0 = &Hefcdab89
-    Dim As UInteger<32> C, c0 = &H98badcfe
-    Dim As UInteger<32> D, d0 = &H10325476
-    Dim As UInteger<32> dtemp, F, g, temp
-
-    Dim As Long i, j
-
-    Dim As ULongInt l = Len(message)
-    ' set the first bit after the message to 1
-    message = message + Chr(1 Shl 7)
-    ' add one char to the length
-    Dim As ULong padding = 64 - ((l +1) Mod (512 \ 8)) ' 512 \ 8 = 64 char.
-
-    ' check if we have enough room for inserting the length
-    If padding < 8 Then padding = padding + 64
-
-    message = message + String(padding, Chr(0))   ' adjust length
-    Dim As ULong l1 = Len(message)                ' new length
-
-    l = l * 8    ' orignal length in bits
-    ' create ubyte ptr to point to l ( = length in bits)
-    Dim As UByte Ptr ub_ptr = Cast(UByte Ptr, @l)
-
-    For i = 0 To 7  'copy length of message to the last 8 bytes
-    message[l1 -8 + i] = ub_ptr[i]
-    Next
-
-    For j = 0 To (l1 -1) \ 64 ' split into block of 64 bytes
-
-    A = a0 : B = b0 : C = c0 : D = d0
-
-    ' break chunk into 16 32bit uinteger
-    Dim As UInteger<32> Ptr M = Cast(UInteger<32> Ptr, @message[j * 64])
-
-    For i = 0 To 63
-      Select Case As Const i
-        Case 0 To 15
-          F = (B And C) Or ((Not B) And D)
-          g = i
-        Case 16 To 31
-          F = (B And D) Or (C And (Not D))
-          g = (i * 5 +1) Mod 16
-        Case 32 To 47
-          F = (B Xor C Xor D)
-          g = (i * 3 +5) Mod 16
-        Case 48 To 63
-          F = C Xor (B Or (Not D))
-          g = (i * 7) Mod 16
-      End Select
-      dtemp = D
-      D = C
-      C = B
-      temp = A + F + K(i)+ M[g] : ROtate_left(temp, s(i))
-      B = B + temp
-      A = dtemp
-    Next
-
-    a0 += A : b0 += B : c0 += C : d0 += D
-
-    Next
-
-    Dim As String answer
-    ' convert a0, b0, c0 and d0 in hex, then add, low order first
-    Dim As String s1 = Hex(a0, 8)
-    For i = 7 To 1 Step -2 : answer +=Mid(s1, i, 2) : Next
-    s1 = Hex(b0, 8)
-    For i = 7 To 1 Step -2 : answer +=Mid(s1, i, 2) : Next
-    s1 = Hex(c0, 8)
-    For i = 7 To 1 Step -2 : answer +=Mid(s1, i, 2) : Next
-    s1 = Hex(d0, 8)
-    For i = 7 To 1 Step -2 : answer +=Mid(s1, i, 2) : Next
-
-    Return LCase(answer)
-
-End Function
-
 ' text related functions
 ' ______________________________________________________________________________'
 
 ' split or explode by delimiter return elements in array
 ' based on https://www.freebasic.net/forum/viewtopic.php?t=31691 code by grindstone
 Function explode(haystack As String = "", delimiter as string, ordinance() As String) As UInteger
-    Dim As String text = haystack  'remind explode as working copy
     Dim As UInteger b = 1, e = 1   'pointer to text, begin and end
     Dim As UInteger x              'counter
-    ReDim ordinance(0)             'reset array
 
     Do Until e = 0
       x += 1
-      ReDim Preserve ordinance(x)         'create new array element
-      e = InStr(e + 1, text, delimiter)   'set end pointer to next space
-      ordinance(x) = Mid(text, b, e - b)  'cut text between the pointers and write it to the array
-      b = e + 1                           'set begin pointer behind end pointer for the next word
+      ReDim Preserve ordinance(x)             'create new array element
+      e = InStr(e + 1, haystack, delimiter)   'set end pointer to next space
+      ordinance(x) = Mid(haystack, b, e - b)  'cut text between the pointers and write it to the array
+      b = e + 1                               'set begin pointer behind end pointer for the next word
     Loop
 
     Return x 'nr of elements returned
@@ -1756,15 +1986,9 @@ skipprint:
     return true
 
 end function
+
 ' notes check https://www.baeldung.com/cs/ml-similarities-in-text
 ' https://www.perplexity.ai/search/cfc218e5-beb2-4c7b-82ef-1e44e22572a8?s=u
-
-' setup word counter
-type wordtally
-    as string  word(any)
-    as integer count(any)
-end type
-dim wc as wordtally
 
 ' get highest value in array
 ' via https://www.freebasic.net/forum/viewtopic.php?t=25443
@@ -1772,7 +1996,7 @@ dim wc as wordtally
 function arrayhighestvalue(needle as string, wc as wordtally) as integer
     Dim As Integer occurancemax = wc.count(0)
     dim as integer temp, cnt
-    For i As Integer = 1 To recnr
+    For i As Integer = 1 To wclinenr
         If wc.count(i) > occurancemax and wc.word(i) = needle Then
             occurancemax = wc.count(i)
             temp = i
@@ -1781,23 +2005,39 @@ function arrayhighestvalue(needle as string, wc as wordtally) as integer
     return occurancemax
 end function
 
-function dictonary(filename as string, wc as wordtally) as string
+function arraylongestvalue(arr() as string) as string
+    dim longeststr as string = arr(0)
+    for i as integer = 1 to ubound(arr)
+        if len(arr(i)) > len(longeststr) then
+            longeststr = arr(i)
+        end if
+    next
+    return longeststr
+end function
 
+
+function dictonary(filename as string, wc as wordtally) as string
     dim dummy   as string = ""
+    dim text    as string = ""
     dim fieldnr as integer = 0
     dim         as long tmp, f
-    recnr = 0
-    dim commonwords as string = "a, an, and, any, all, at, be, but, by, can, for, from, i, if, in, make, more, no, not, of, off, on, the, then, this, to, yes, was, we, with"
+    dim commonwords as string = "a, an, and, any, all, at, be, both, but, by, can, came, come, comes, did, do, does, doing, done, else, end, even, " + _
+                                "for, from, go, goes, gone, going, got, had, has, have, having, here, how, i, if, in, into, let, like, " + _ 
+                                "made, make, more, most, no, not, now, of, off, on, once, sure, that, the, their, them, then, they, there, these, thing, " + _ 
+                                "this, to, too, use, used, using, " + _
+                                "want, was, way, we, well, with, what, when, where, who, would, yes, you, your"
+    wclinenr = 0
     ' isolate words
     tmp = readfromfile(filename)
     Do Until EOF(tmp)
         Line Input #tmp, dummy
-        'print dummy    
+        if len(dummy) > 2 then 
+            'print len(dummy)    
             ReDim As String ordinance(0)
             explode(dummy, " ", ordinance())
             For x As Integer = 1 To UBound(ordinance)
-                if ordinance(x) <> "" then
-                    ordinance(x) = lcase(ordinance(x))
+                ordinance(x) = trim(lcase(ordinance(x)))
+                if ordinance(x) <> "" and instr(ordinance(x), " ") = 0 and (len(ordinance(x)) > 4 and len(ordinance(x)) < 21) then
                     ' todo capture word...word patterns
                     ordinance(x) = replace(ordinance(x), ".", "")
                     ordinance(x) = replace(ordinance(x), "!", "")
@@ -1808,37 +2048,42 @@ function dictonary(filename as string, wc as wordtally) as string
                     ordinance(x) = replace(ordinance(x), ";", "")
                     ordinance(x) = replace(ordinance(x), ")", "")
                     ordinance(x) = replace(ordinance(x), "(", "")
+                    ordinance(x) = replace(ordinance(x), "*", "")
+                    ordinance(x) = replace(ordinance(x), "[", "")
+                    ordinance(x) = replace(ordinance(x), "]", "")
                     ordinance(x) = replace(ordinance(x), chr$(34), "")
                     'print recnr & " " & ordinance(x)
-                    recnr += 1
+                    wclinenr += 1
                 end if
-                redim preserve wc.word(0 to recnr)
-                redim preserve wc.count(0 to recnr)
-                wc.word(recnr)  = trim(ordinance(x))
+                redim preserve wc.word(0 to wclinenr)
+                redim preserve wc.count(0 to wclinenr)
+                wc.word(wclinenr)  = ordinance(x)
                 ' tally word occurance
-                for j as integer = 1 to recnr
-                    with record
-                        if wc.word(recnr) = wc.word(j) then
-                            wc.count(recnr) += 1
+                for j as integer = 1 to wclinenr
+                    'with record
+                        if wc.word(wclinenr) = wc.word(j) then
+                            wc.count(wclinenr) += 1
                         end if
-                    end with
+                    'end with
                 next j
             next
+        end if
     Loop
     close(tmp)
 
     ' filter on min / max frequncy word
-    for j as integer = 1 to recnr 
-        with record
-            if wc.word(j) <> "" and instr(commonwords, wc.word(j)) = 0 and isalphanumeric(wc.word(j)) then
+    for j as integer = 1 to wclinenr 
+        'with record
+            if wc.word(j) <> "" and instr(commonwords, wc.word(j)) = 0 and isalphanumeric(wc.word(j)) and val(wc.word(j)) = 0 then
                 if wc.count(j) <= 2 then
                     if wc.count(j) = arrayhighestvalue(wc.word(j), wc) then
-                        print wc.count(j) & " = " + wc.word(j)
+                        'print wc.count(j) & " = " + wc.word(j)
+                        text += wc.word(j) + ", "
                     end if                    
                 end if
             end if
-        end with
+        'end with
     next j
-    print "word count: " & recnr
-    sleep(15)
+    'print "word count: " & recnr
+    return left(text, len(text) - 2) 
 end function
