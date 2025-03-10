@@ -1,0 +1,97 @@
+A quick tutorial illustrating basic fts5 usage of cmdsqlite.exe
+
+| create a movie.db
+
+* step one cmdsqlite.exe data\movie.json fts > data\movie.sql
+  this creates a game.sql file in the subfolder \data
+  which can be used to create a database movie.db
+
+* step two cmdsqlite.exe data\movie.db data\movie.sql
+  creates the movie.db in the subfolder \data
+
+| get structure of movie.db
+
+* step one cmdsqlite.exe data\movie.db showtables
+  displays table(s) in database in this case 'movie'
+
+* step two cmdsqlite.exe data\movie.db showfields movie
+  displays fieldnames in table 'movie'
+
+| example queries fts5
+
+! note: html export uses the folder templates so export html file
+        needs to be relative to 'templates' see html output.
+
+* search on sixth field only highlight 'rko' in results for html export
+  5 = the sixth field (count starts from 0)
+
+cmdsqlite.exe data\movie.db data\fts5highlight.query html > movie.html
+
+fts5highlight.query:
+select title, year, highlight(movie, 5, '<b>', '</b>') extract
+ from movie
+ where extract match 'rko'
+ order by year desc
+
+* search on all fields on 'mary' create snippet in results for html export
+  -1 = search all fields : 12 = size snippet in word count
+
+cmdsqlite.exe data\movie.db data\fts5snippet.query html > movie.html
+
+fts5snippet.query:
+select title, year, snippet(movie, -1, '<b>', '</b>', '', 12) as 'result'
+ from 'movie'
+ where extract match 'mary'
+ order by year desc
+
+* general search on specific field 'extract' for 'mgm'
+
+cmdsqlite.exe data\movie.db data\fts5general.query | more
+
+fts5genral.query:
+select title, extract, year
+ from 'movie'
+ where extract match 'mgm'
+ order by year desc
+
+variation inclusion containg <needle A> and <needle B>
+select title, extract, year
+ from 'movie'
+ where extract match 'mgm AND novel'
+ order by year desc
+
+variation exclusion containg <needle A> and not <needle B>
+ select title, extract, year
+ from 'movie'
+ where extract match 'mgm NOT silent'
+ order by year desc
+
+variation containg phrase
+select title, extract, year
+ from 'movie'
+ where extract match '"to save his"'
+ order by year desc
+
+
+* exporting index(es) still rough
+
+create a table with term, doc and cnt:
+create virtual table studio using fts5vocab('movie', 'row');
+
+list all terms in index:
+select term from studio;
+
+list all term(s) and frequency:
+select term, cnt from studio;
+
+attempt to filter out numeric values:
+select term, cnt from studio where term GLOB '[A-Za-z]*' AND term NOT GLOB '*[0-9]*';
+
+or (tricky this one gives false positves):
+select term, cnt from studio where not round(term);
+
+Note more is possible with:
+https://www.sqlite.org/fts5.html#the_fts5vocab_virtual_table_module
+
+courtesy 'punkish':
+https://stackoverflow.com/questions/76592287/how-to-count-word-frequency-in-a-fulltext-column

@@ -1,0 +1,8 @@
+# search duplicates fuzzy
+select a.path, a.file
+ from mp3 a
+ join mp3 b on
+   a.file like b.file
+ where
+   a.path <> b.path
+ order by a.file

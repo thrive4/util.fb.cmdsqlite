@@ -1,0 +1,3 @@
+# duplicate counter exact match
+# courtesy https://stackoverflow.com/questions/21980064/find-duplicate-column-value-in-sqlite
+select path, file, count(*) times from mp3 group by file having times > 1;

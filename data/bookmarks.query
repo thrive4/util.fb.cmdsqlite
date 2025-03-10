@@ -1,0 +1,7 @@
+# list all bookmarks stored in places.sqlite of browsers seamonkey, firefox etc
+select moz_bookmarks.parent, moz_bookmarks.title, moz_places.url, moz_bookmarks.type,
+ datetime(round(moz_bookmarks.dateAdded * 0.000001), 'unixepoch', 'localtime') as isodate,
+ (select moz_bookmarks.title from moz_bookmarks where moz_bookmarks.type = 2) as 'group'
+ from moz_bookmarks
+ inner join moz_places on moz_places.id = moz_bookmarks.id
+ order by moz_bookmarks.parent and moz_bookmarks.dateAdded

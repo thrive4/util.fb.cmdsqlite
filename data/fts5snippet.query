@@ -1,0 +1,4 @@
+select title, year, snippet(movie, -1, '<b>', '</b>', '', 12) as 'result'
+ from 'movie'
+ where extract match 'mary'
+ order by year desc

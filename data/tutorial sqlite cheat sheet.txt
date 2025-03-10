@@ -1,0 +1,335 @@
+Gotcha's and tips:
+! pending on tool do not forget to write changes
+! best practice *first* do a select to verify what and how
+  the result of the change(s) to field values or tables is
+  *then* do the update query
+! make a backup of the db before doing intricate changes to it
+! escape " with "" so "test" becomes ""test"" or use single quote '"test"'
+! Concatenate || (sqlite does not support concat)
+! lower() and upper() for altering results to lower or upper case
+' sqlite does *not* have a 'date' field type
+' internal date functions (including order by) *only*
+' works when the date-time stamp is in the format 'yyyy-mm-dd hh:mm:ss'
+! field is a old school way of refering to a column
+! try to prevent using space, quotes or comma's in field or table
+! names it will cause a lot of issues when querying or exporting
+! to json or csv
+! manual sqlite https://www.sqlitetutorial.net/sqlite-functions/
+! very handy tool https://sqlitebrowser.org/
+! querying tables with a hyphen / minus ex. table-name use 'table-name'
+! "select name, developer from 'game-with-hyphen'"
+! use vacuum; to compact a database ex. 'cmdsqlite.exe <database> "vacuum;"
+
+show tables in database:
+select name from sqlite_schema where type ='table' and name not like 'sqlite_%'
+
+show table structure:
+select sql from sqlite_schema where name = 'game'
+
+search with wildcard:
+select name, genre, icon from game where genre like 'ac%' order by name asc
+
+search with wildcard and 'escape' character % _ use:
+select name, cover from game where cover like "%\_%" escape '\';
+update game set cover = replace(cover, "_", " ") where cover like "%\_%" escape '\';
+
+____________________________________________________________________________
+
+search with string function:
+select case when instr(name, "-") > 0 then name else "nop" end from game
+____________________________________________________________________________
+
+search convert string to integer function:
+"select filename, width, height from imagemetric where cast(width as integer) > 1000"
+convert to double:
+"select filename, width, height from imagemetric where cast(width as real) > 1000"
+
+* note normaly it is more efficent to define
+  numerical data as such with
+  'width'               integer,
+  'width'               real,
+  'width'               numeric,
+  with the function create table if not exists 'imagemetric' (
+____________________________________________________________________________
+
+search on two tables:
+select launcher.args, game.id, launcher.name, launcher.thumb, game.cover, launcher.active from launcher inner join game on launcher.args = game.id
+select launcher.args, game.id, launcher.name, game.name, launcher.thumb, game.cover, launcher.active, game.active from launcher inner join game on launcher.args = game.id
+select rom.filename, game.id, rom.name, game.name, rom.thumb, game.cover, rom.active, game.active from rom inner join game on rom.filename = game.id
+! example with lower case result vgsales.Publisher
+select game.name, lower(vgsales.Publisher), game.publisher from vgsales inner join game on vgsales.name like game.name
+
+update on two tables:
+update game as dst set publisher = lower(src.publisher) from vgsales as src where dst.name like src.name
+generic > UPDATE table1 AS dst SET C=src.D FROM table2 AS src WHERE dst.A=src.A
+
+compare two tables show non matching records:
+SELECT film.file FROM film where film.file not in (select lower(movie_data.title) from movie_data inner join film on film.file like movie_data.title);
+SELECT film.file FROM film except SELECT lower(movie_data.title) from movie_data;
+! make sure the two columns have the same case (use upper or lower if needed) !
+____________________________________________________________________________
+
+search empty fields:
+select publisher from game where publisher is null
+
+update empty fields:
+update game set publisher = "unknown" where publisher is null
+
+search not empty fields:
+select publisher from game where lastplayed not null order by lastplayed desc
+
+update empty fields:
+update game set publisher = "unknown" where lastplayed not null
+____________________________________________________________________________
+
+search with substitute:
+select executable, replace(executable, ".bat", ".exe") as newvalue from game where platform = "ps2"
+
+update with substitute:
+update game set executable = replace(executable, ".bat", ".exe") where platform = "ps2"
+____________________________________________________________________________
+
+search with truncate by substitute:
+select case when instr(name, "-") > 0 then substr(name, 1, instr(name, " -")) else name end from game
+from:
+agon 1 - agon 1
+to:
+agon 1
+
+update with truncate by subsitute:
+update game set name = substr(name, 1, instr(name, " -")) where instr(name, "-") > 0
+____________________________________________________________________________
+
+search with field A value substituted by value of field B:
+select platform, executable, argument, coalesce(argument, executable) as newarg from game where platform="gamecube" and argument is null
+
+update with field A value substituted by value of field B:
+update game set argument = executable where platform="gamecube" and argument is null
+____________________________________________________________________________
+
+search with field value alterd regardless of field value:
+select executable, case when length(executable) > 0 then "f:\emu\gamecube\dolphin.exe" else "" end as newexec from game where platform="gamecube"
+
+update with field value alterd regardless of field value:
+update game set executable = case when length(executable) > 0 then "f:\emu\gamecube\dolphin.exe" else "" end where platform="gamecube"
+____________________________________________________________________________
+
+search with field A value alterd in part by substitute of value of field B
+and concatenate (||) result with parts of field A preceding and following
+!note substr(string, start, length) ommit legth for remainder string substr(string, start):
+select active, executable, name, substr(executable, 1, 9) || coalesce(name, executable) || substr(executable, 9) as newvalue from game where active="false" and executable like "%.lnk"
+
+update with field A value alterd in part by substitute of value of field B
+and concatenate (||) result with parts of field A preceding and following
+update game set executable = substr(executable, 1, 9) || coalesce(name, executable) || substr(executable, 9) where active="false" and executable like "%.lnk"
+____________________________________________________________________________
+
+regexp search with field A and replace field B with part of field A
+SELECT substr(name, 7), coalesce(broadcaster, substr(name, 1, 3)) as broadcaster
+FROM docu
+WHERE name REGEXP '^bbc -';
+
+rexexp update with field A and replace field B with part of field A
+update docu set name = substr(name, 7), broadcaster = substr(name, 1, 3) where name REGEXP '^bbc -'
+____________________________________________________________________________
+
+search with tally:
+select paddefenition, count(*) from game group by paddefenition
+select paddefenition, count(*) from game group by paddefenition order by count(paddefenition) DESC;
+____________________________________________________________________________
+
+search duplicates with tally:
+select name, count(*) as tally from game group by name having count(1) > 1
+
+remove duplicates keeping one record:
+a) copy table structre and create temp table
+b) insert the unique records into temp table using:
+   insert into temp select * from <orginal table> group by <column with duplicate values>;
+c) optinal steps drop original table and rename temp table to original
+   drop table <original table name>
+   alter table `<temp>` rename to `<original table name>`
+
+* courtesy: https://stackoverflow.com/questions/1286843/how-to-keep-only-one-row-of-a-table-removing-duplicate-rows
+____________________________________________________________________________
+
+search case insensitive (or use like):
+select name, executable, lastplayed from game where name = "agatha evil under the sun" and executable = "g:\games\agatha evil under the sun\euts.exe" COLLATE NOCASE
+update game set lastplayed = "18-07-2023 18:28:11" where name = "agatha evil under the sun" and executable = "g:\games\agatha evil under the sun\euts.exe" COLLATE NOCASE
+____________________________________________________________________________
+
+search with european format dd-mm-yyyy:
+select name, date_id from game where substr(date_id,7)||substr(date_id,4,2)||substr(date_id,1,2) between '20101101' and '20151130' order by date_id desc
+!note sqlite's date functions, and order by, only support yyyy-mm-dd (american notation)
+____________________________________________________________________________
+
+| search on date standard format yyyy-mm-dd hh:mm:ss
+
+period between current date and 1 month in the past:
+select name, date_id from game where date_id > date('now','-1 month');
+
+period between current date and 2 year(s) in the past:
+select name, date_id from game where date_id > date('now','-2 year');
+! note as far as I can tell it does not use plurals so '-2 year' and not '-2 years'
+
+period between current date and 2 year(s) in the past month january only:
+select name, date_id from game where date_id > date('now','-2 year') and strftime('%m', date_id) = '01';
+
+tally records added (per month) in period between current date and 2 year(s) in the past:
+select strftime('%m', date_id) as month, count(name) as records_added
+from game where date_id > date('now','-2 year')
+group by strftime('%m', date_id);
+
+variant:
+select strftime('%Y', date_id) as year, strftime('%m', date_id) as month, count(name) as files_added
+from text where date_id > date('now','-2 year')
+group by strftime('%m', date_id) order by year, month;
+
+____________________________________________________________________________
+
+update with join:
+update game set name = changefrom.changeto from (select name as changeto, filename from rom) as changefrom where game.id = changefrom.filename
+____________________________________________________________________________
+
+update with escaped double quote use "" instead of " in value which will replace):
+update game set argument = """Dark Cloud 2.ISO"" --nogui --fullboot" where argument is null and platform = "ps2"
+
+create a unique list from values in a field:
+select distinct platform from game order by platform asc
+
+alter column / field name:
+alter table game rename column icon to cover
+____________________________________________________________________________
+
+date conversions (asumes presence timestamp hh:mm:ss):
+!note suggest to use the order single digits days, months then double digits
+
+format 8-11-2008 18:14:24 to 2008-11-08 18:14:24 (single digit days)
+select name, date_id,
+       substr(date_id, 6, 4) || '-' ||
+       substr(date_id, 3, 2) || '-0' ||
+       substr(date_id, 1, 1) || ' ' || substr(date_id,11)
+       as newdate from game
+where date_id LIKE '_-%-%';
+
+update game set date_id =
+       substr(date_id, 6, 4) || '-' ||
+       substr(date_id, 3, 2) || '-0' ||
+       substr(date_id, 1, 1) || ' ' || substr(date_id,11)
+where date_id LIKE '_-%-%';
+
+format 24-3-2020 18:15:33 to 2020-03-24 18:15:33 (single digit months)
+select name, date_id,
+       substr(date_id, 6, 4) || '-0' ||
+       substr(date_id, 4, 1) || '-' ||
+       substr(date_id, 1, 2) || ' ' || substr(date_id,11)
+       as newdate from game
+where date_id LIKE '%-_-%';
+
+update game set date_id =
+       substr(date_id, 6, 4) || '-0' ||
+       substr(date_id, 4, 1) || '-' ||
+       substr(date_id, 1, 2) || ' ' || substr(date_id,11)
+where date_id LIKE '%-_-%';
+
+format 18-06-2013 18:14:26 to 2013-06-18 18:14:26 (double digit days and months)
+select name, date_id,
+       substr(date_id,7,4) || '-' ||
+       substr(date_id,4,2) || '-' ||
+       substr(date_id,1,2) ||
+       substr(date_id,11)
+       as datenew from game
+where date_id like '__-__-____%';
+
+update game set date_id =
+       substr(date_id,7,4) || '-' ||
+       substr(date_id,4,2) || '-' ||
+       substr(date_id,1,2) ||
+       substr(date_id,11)
+where date_id like '__-__-____%';
+
+format 2013-06-18 18:14:26 to 18-06-2013 18:14:26 (double digit days and months)
+select folder, date,
+    substr(date, 9, 2) || '-' ||
+    substr(date, 6, 2) || '-' ||
+    substr(date, 1, 4) || ' ' ||
+    substr(date, 12, 8)
+       as datenew from data
+ where date like '____-__-__%';
+
+update data set date =
+    substr(date, 9, 2) || '-' ||
+    substr(date, 6, 2) || '-' ||
+    substr(date, 1, 4) || ' ' ||
+    substr(date, 12, 8)
+ where date like '____-__-__%';
+
+select title, release_date, substr(release_date,1, 4) as year from movie_data;
+update movie_data set release_date = substr(release_date, 1, 4);
+____________________________________________________________________________
+
+add fixed field and value to result:
+select publisher, 'added' as virtualfield from game where publisher is null
+concat field result:
+select publisher, <a href="' || url || '">' as href  from game where publisher is null
+____________________________________________________________________________
+
+remove records:
+
+delete from game_info where platforms="iOS"
+____________________________________________________________________________
+
+fts5 full text search and vocab
+
+CREATE VIRTUAL TABLE extractrow USING fts5vocab('movies1920s50s', 'row');
+count number of times term occurs in all records:
+select * from extractrow where term = 'palace';
+
+CREATE VIRTUAL TABLE extractinstance USING fts5vocab('movies1920s50s', 'instance');
+return info per column / field where term occurs:
+select * from extractinstance where term = 'palace';
+
+tally by year:
+SELECT movies1920s50s.year, Count(extractinstance.doc) AS c
+   FROM extractinstance JOIN movies1920s50s 
+   ON extractinstance.doc = movies1920s50s.ROWID
+   WHERE extractinstance.term = 'palace'
+   GROUP BY movies1920s50s.year
+   ORDER BY movies1920s50s.year ASC, c DESC;
+
+Similar to https://books.google.com/ngrams/
+
+tally by year plus title:
+SELECT movies1920s50s.year, movies1920s50s.title, Count(extractinstance.doc) AS c
+   FROM extractinstance JOIN movies1920s50s
+   ON extractinstance.doc = movies1920s50s.ROWID
+   WHERE extractinstance.term = 'palace'
+   GROUP BY movies1920s50s.year, movies1920s50s.title
+   ORDER BY movies1920s50s.year ASC, c DESC;
+
+
+* courtesy https://stackoverflow.com/questions/76592287/how-to-count-word-frequency-in-a-fulltext-column (punkish)
+
+CREATE VIRTUAL TABLE walkthrough_instance USING fts5vocab(walkthrough, instance);
+select file from walkthrough where rowid in (select doc from walkthrough_instance where term = 'mike')
+
+____________________________________________________________________________
+
+scratchpad:
+select platform, executable, replace(executable, "d:\emu\gamecube\", "g:\games\wii\wii - ") as newexec from game where platform = "gamecube"
+update game set executable = replace(executable, "d:\emu\gamecube\", "g:\games\wii\wii - ") from game where platform = "gamecube"
+select platform, executable, replace(executable, ".lnk", "\change.iso""") as newexec from game where platform = "gamecube"
+select platform, executable, argument, '--no-gui "G:\games\ps3 - ' || coalesce(name, argument) || '\PS3_GAME\USRDIR\EBOOT.BIN"' as newarg from game where platform="ps3" and argument is null
+update game set argument = '--no-gui "G:\games\ps3 - ' || coalesce(name, argument) || '\PS3_GAME\USRDIR\EBOOT.BIN"' where platform="ps3" and argument is null
+
+wikidata comparison:
+select game.name, devpub.title, game.publisher, devpub.publishers as wikidata from game inner join devpub on game.name like devpub.title and game.publisher not like wikidata
+select game.name, devpub.title, game.publisher, lower(devpub.publishers) as wikidata from game inner join devpub on game.name like devpub.title and game.publisher not like wikidata
+
+select movie_data.title, film.file from movie_data inner join film on film.file like movie_data.title;
+select game.file, lower(steamdb.name), steamdb.published_igdb, steamdb.genres, steamdb.developers, steamdb.publishers, steamdb.igdb_url from steamdb inner join game on game.file like steamdb.name;
+select game.file, lower(steamdb.name), substr(steamdb.published_igdb, 1, 4) as year, steamdb.genres, steamdb.developers, steamdb.publishers, steamdb.igdb_url from steamdb inner join game on game.file like steamdb.name;
+
+select game.file, lower(video_games.name), video_games.year_of_release as year, video_games.genre, video_games.developer, video_games.publisher
+from video_games inner join game on game.file like video_games.name
+where lower(video_games.platform) = "pc"
+order by video_games.name;

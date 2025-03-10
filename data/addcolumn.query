@@ -1,0 +1,2 @@
+# add a column aka field to a table
+alter table film add 'private' text;

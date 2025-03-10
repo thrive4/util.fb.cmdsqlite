@@ -1,0 +1,17 @@
+# format 2013-06-18 18:14:26 to 18-06-2013 18:14:26 (double digit days and months)
+# test
+select folder, date,
+    substr(date, 9, 2) || '-' ||
+    substr(date, 6, 2) || '-' ||
+    substr(date, 1, 4) || ' ' ||
+    substr(date, 12, 8)
+       as datenew from data
+ where date like '____-__-__%';
+
+# convert to european notation (unremark)
+#update data set date =
+#    substr(date, 9, 2) || '-' ||
+#    substr(date, 6, 2) || '-' ||
+#    substr(date, 1, 4) || ' ' ||
+#    substr(date, 12, 8)
+# where date like '____-__-__%';

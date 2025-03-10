@@ -1,0 +1,2 @@
+# remove a column aka field (and data) from a table
+alter table film drop column file;

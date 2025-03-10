@@ -1,0 +1,13 @@
+# get bookmarks filter on folder(s) from moz browsers seamonkey, firefox, etc
+# seamonkey <path>\seamonkey\profiles\places.sqlite
+#        or <drive>\Users\<user name>\AppData\Roaming\Mozilla\SeaMonkey\Profiles\<profile name>\places.sqlite
+# firefox   <drive>\Users\<user name>\AppData\Roaming\Mozilla\Firefox\Profiles\<profile name>\places.sqlite
+select * from
+ (SELECT x.title as description, lower(w.title) as name, 'false' as private, '<a href="' || z.url || '" target="_blank">' as href,
+  datetime(round(x.dateAdded * 0.000001), 'unixepoch', 'localtime') as updated
+  FROM moz_bookmarks x, moz_bookmarks y,moz_places z,moz_bookmarks w
+  WHERE x.id = y.parent and y.fk = z.id and w.fk = z.id)
+ where (description = 'online media sources' or description = 'online tools' or
+        description = 'css' or description = 'svg' or
+        description = 'js' or description = 'fb' or
+        description = 'sparql' or description = 'sql') and name IS NOT NULL

@@ -1,0 +1,17 @@
+# format 18-06-2013 18:14:26 to 2013-06-18 18:14:26 (double digit days and months)
+# test
+select date,
+       substr(date,7,4) || '-' ||
+       substr(date,4,2) || '-' ||
+       substr(date,1,2) ||
+       substr(date,11)
+       as datenew from data
+ where date like '__-__-____%';
+
+# convert to amercian notation (unremark)
+#update data set date =
+#       substr(date,7,4) || '-' ||
+#       substr(date,4,2) || '-' ||
+#       substr(date,1,2) ||
+#       substr(date,11)
+# where date like '__-__-____%';

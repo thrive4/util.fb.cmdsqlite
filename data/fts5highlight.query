@@ -1,0 +1,4 @@
+select title, year, highlight(movie, 5, '<b>', '</b>') extract
+ from movie
+ where extract match 'rko'
+ order by year desc

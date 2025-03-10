@@ -1,0 +1,4 @@
+# list tags aka catagories or folders from browsers seamonkey, firefox etc
+select moz_bookmarks.parent, moz_bookmarks.position, moz_bookmarks.title
+ from moz_bookmarks where moz_bookmarks.type = 2
+ order by moz_bookmarks.parent
