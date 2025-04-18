@@ -271,6 +271,13 @@ add fixed field and value to result:
 select publisher, 'added' as virtualfield from game where publisher is null
 concat field result:
 select publisher, <a href="' || url || '">' as href  from game where publisher is null
+
+variant:
+
+add or append non exsiting column:
+
+select name, game, concat('EA', '') as developer from game;
+*adds the column 'developer' to the queries output with fixed value 'EA'
 ____________________________________________________________________________
 
 remove records:
