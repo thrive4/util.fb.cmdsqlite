@@ -1,14 +1,45 @@
+update v1.4 18/04/2025
+- fix correct table name in sql export with querie
+- fix correct filename as db name in xml main node export
+- fix xml sanitazion ampersand remove space
+- fix rec nr counter all list types csv, sql, json etc
+- fix incorrect field count empty fieldname could occure when getting fieldnames
+- updated and reformated help file
+- harmonize json export can now deal with select *
+  no longer uses seperate select json_object(
+- added list play to audioplayer (html)
+   navigation player
+   next     arrow right
+   previous arrow left
+   toggle   pause / play p
+   volume   up +
+   volume   down -
+   seek     plus .
+   seek     min ,
+- added primitive export database exports to seperate tables
+  output to .sql, .csv and .xml
+- added web export option for media files mp3, jpg etc
+  similar to html exif but adds a file column and
+  truncates file path assumes wwwroot/audio on webserver
+  example output:
+  exif
+  {"artist":"The Beatles","title":"baby you are a rich man","album":"Magical Mystery Tour","year":"1987","genre":"rock","theme":"beatless"},
+  web
+  {"artist":"The Beatles","title":"baby you are a rich man","album":"Magical Mystery Tour","year":"1987","genre":"rock","file":"audio/beatless/the beatles - baby you are a rich man.mp3"},
+  html exif
+  <tr class='trlight' onclick="audioplay('file://g:/data/mp3/beatless/the beatles - baby you are a rich man.mp3', this);"><td><div class='audiobutton'></div></td><td>The Beatles</td><td>baby you are a rich man</td><td>Magical Mystery Tour</td><td>rock</td><td>beatless</td><td>1987</td></tr>
+
 update v1.3 10/03/2025
 - started a baseline sqlite fts5 implementation
   import datasources csv, json, folder, xml
-  and rundimentarty text and exif info specific filetypes
+  and rudimentary text and exif info specific filetypes
   issues: fts5
   'rank' is a reserved name so the fieldname needs to be renamed
   there are issues with hyphen in table names ....
 - gradual implementation json data format escaping rules
   import pjson (aka pretty json), single and multi line
   with basic error handling
-- started a rundementary form of disk catalog format
+- started a rudimentary form of disk catalog format
   drive label, folder, folder date, folder size
   example: cmdsqlite e:\ catalog
 - added basic comment handling in .query comment character is # (hash)
@@ -18,13 +49,13 @@ update v1.3 10/03/2025
 - added basic .srt import format
   file, subtitlenr, starttime, endtime, text
 - added theme field to mp3 html export theme is last folder in path
-  exampe: theme = 'classic' from g:\data\mp3\classic\
+  example: theme = 'classic' from g:\data\mp3\classic\
 - added file metrics folder size, drive label, drive storage
 - added support database extension .sqlite used by some applications and browsers
 - removed ' in xml node names
 - regression checkpath (see 1.1) fixed again
 - more fixes to errorhandling csv import
-- fixed incorrect table defintion xml import
+- fixed incorrect table definition xml import
 - fixed preserve linefeed when converting .sql to .db
 - fixed issue with numerical data in json pattern "fieldname":123
   becomes "fieldname":"123"

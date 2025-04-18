@@ -1257,7 +1257,7 @@ Function xml2sql(filename as string, tbname as string = "", element as string = 
                         fvalue = mid(text, instr(text, ">") + 1, instr(trim(text), "</") - (len(fname) + 3))
                         if fvalue = "" then fvalue = "null" end if
                         ' reverse xml sanitazion
-                        fvalue = replace(fvalue, " &amp; ", " & ")
+                        fvalue = replace(fvalue, "&amp;", "&")
                         fvalue = replace(fvalue, "&gt;", ">")
                         fvalue = replace(fvalue, "&lt;", "<")
                         fvalue = replace(fvalue, "'", "''")
@@ -1464,6 +1464,26 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                                     argv(4) = str(fsize)
                                     argv(5) = str(thumb)
                                 else
+if instr(filterext, ".mp3") > 0 and htmloutput = "web" then
+                                ' path(i) folder and drive
+                                getmp3baseinfo(path(i) + file)
+                                argc(0) = "artist"
+                                argc(1) = "title"
+                                argc(2) = "album"
+                                argc(3) = "year"
+                                argc(4) = "genre"
+                                'argc(5) = "theme"
+                                argc(5) = "file"
+
+                                argv(0) = taginfo(1)
+                                argv(1) = taginfo(2)
+                                argv(2) = taginfo(3)
+                                argv(3) = taginfo(4)
+                                argv(4) = taginfo(5)
+                                argv(5) = "audio/" + taginfo(6) + "/" + file
+                                'argv(5) = path(i) + file
+
+else
                                     argc(0) = "path"
                                     argc(1) = "file"
                                     argc(2) = "fileext"
@@ -1477,6 +1497,7 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                                     argv(3) = str(fsize)
                                     argv(4) = fdate
                                     argv(5) = fattr
+end if
                                 end if
                             end if
 

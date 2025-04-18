@@ -24,7 +24,6 @@ common shared csv           as string
 #include once "utilmht.bas"
 #cmdline "app.rc"
 
-
 ' init sqlite
 Dim db      As sqlite3 Ptr
 Dim rc      As Integer
@@ -51,7 +50,6 @@ Function sqlitegetrecord Cdecl (Byval usr As Any Ptr, _
         End If
         recnr += 1
     Next i
-
     Return 0
 End Function
 
@@ -85,7 +83,7 @@ function listcsv(needle as string = "", checkfile as boolean = false) as boolean
     ' get fieldnames aka header
     for i as integer = 0 to recnr
         with record
-            if instr(dummy, record.fieldname(i)) = 0  then
+            if instr(dummy, record.fieldname(i)) = 0 and record.fieldname(i) <> "" then
                 if record.fieldname(i) = needle and checkfile then
                     dummy += "coverfound,"
                 end if
@@ -123,40 +121,40 @@ function listcsv(needle as string = "", checkfile as boolean = false) as boolean
     ' strip final carrige return
     print mid(dummy, 1, len(dummy) - 2)
     ' todo needs more accurate count for fields and records current workaround
-    logentry("notice", "csv export nr record(s) " & ((recnr + 1) / fieldnr))
+    logentry("notice", "csv export nr record(s) " & fix(ubound(record.fieldname) / fieldnr))
 
     return true
 
 end function
 
-function listsql(needle as string = "", tabletype as string = "", bom as string = "") as boolean
+function listsql(needle as string = "", tabletype as string = "", bom as string = "", createtable as boolean = true) as boolean
 
     dim dummy   as string = ""
     dim fieldnr as integer = 0
     dim cnt     as integer = 1
 
     ' create table defintion
-    print "begin transaction;"
+    dummy = "begin transaction;" + chr$(13) + chr$(10)
     ' add encoding if needed
     select case bom
         case "utf16", "utf-16"
-            print "pragma encoding = utf16;"
+            dummy += "pragma encoding = utf16;" + chr$(13) + chr$(10)
         case "utf8", "utf-8"
-            print "pragma encoding = utf8;"
+            dummy += "pragma encoding = utf8;" + chr$(13) + chr$(10)
         case else
             ' nop
     end select
 
     if tabletype = "fts" then
-        print "create virtual table if not exists '" + needle + "' using fts5("        
+        dummy += "create virtual table if not exists '" + needle + "' using fts5(" + chr$(13) + chr$(10)
     else
-    print "create table if not exists '" + needle + "' ("
+        dummy +=  "create table if not exists '" + needle + "' (" + chr$(13) + chr$(10)
     end if
 
     ' get fieldnames aka header
     for i as integer = 0 to recnr
         with record
-            if instr(dummy, record.fieldname(i)) = 0  then
+            if instr(dummy, record.fieldname(i)) = 0 and record.fieldname(i) <> "" then
                 if tabletype = "fts" then
                     ' rank is a reserved fieldname with fts5
                     if lcase(trim(record.fieldname(i))) = "rank" then record.fieldname(i) = "ranked" end if
@@ -168,8 +166,10 @@ function listsql(needle as string = "", tabletype as string = "", bom as string 
             end if
         end with
     next i
-    print mid(dummy, 1, len(dummy) - 3)
-    print ");"
+    if createtable then
+        print mid(dummy, 1, len(dummy) - 3)
+        print ");"
+    end if
 
     ' create inserts
     dummy = ""
@@ -190,9 +190,11 @@ function listsql(needle as string = "", tabletype as string = "", bom as string 
     next i
     ' strip final carrige return
     print mid(dummy, 1, len(dummy) - 2)
-    print "commit;"
+    if createtable then
+        print "commit;"
+    end if
     ' todo needs more accurate count for fields and records current workaround
-    logentry("notice", "sql export nr record(s) " & ((recnr + 1) / fieldnr))
+    logentry("notice", "sql export nr record(s) " & fix(ubound(record.fieldname) / fieldnr))
 
     return true
 
@@ -226,7 +228,7 @@ function listhtml(needle as string = "") as boolean
     dummy = ""
     for i as integer = 0 to recnr
         with record
-            if instr(dummy, record.fieldname(i)) = 0  then
+            if instr(dummy, record.fieldname(i)) = 0 and record.fieldname(i) <> "" then
                 dummy += record.fieldname(i) + ","
                 print "         <a href='' onclick=" + chr$(34) + "localStorage.setItem('tdelement', '" + str(i + 1) + "')" + chr$(34) + ";>" + record.fieldname(i) + "</a>"
             end if
@@ -238,7 +240,7 @@ function listhtml(needle as string = "") as boolean
     dummy = ""
     for i as integer = 0 to recnr
         with record
-            if instr(dummy, record.fieldname(i)) = 0  then
+            if instr(dummy, record.fieldname(i)) = 0 and record.fieldname(i) <> "" then
                 dummy += record.fieldname(i) + ","
                 print "     <th>" + record.fieldname(i) + "</th>"
                 fieldnr += 1
@@ -278,7 +280,7 @@ function listhtml(needle as string = "") as boolean
     close(tmp)
 
     ' todo needs more accurate count for fields and records current workaround
-    logentry("notice", "html export nr record(s) " & ((recnr + 1) / fieldnr))
+    logentry("notice", "html export nr record(s) " & fix(ubound(record.fieldname) / fieldnr))
 
     return true
 
@@ -288,11 +290,10 @@ function listjson(needle as string = "") as boolean
     dim dummy   as string = ""
     dim fieldnr as integer = 0
     dim cnt     as integer = 1
-
     ' count nr fields
     for i as integer = 0 to recnr
         with record
-            if instr(dummy, record.fieldname(i)) = 0  then
+            if instr(dummy, record.fieldname(i)) = 0 and record.fieldname(i) <> "" then
                 dummy += record.fieldname(i) + ","
                 fieldnr += 1
             end if
@@ -341,7 +342,7 @@ function listjson(needle as string = "") as boolean
     end if
     print "]"
     ' todo needs more accurate count for fields and records current workaround
-    logentry("notice", "json export nr record(s) " & ((recnr + 1) / fieldnr))
+    logentry("notice", "json export nr record(s) " & fix(ubound(record.fieldname) / fieldnr))
 
     return true
 
@@ -350,8 +351,8 @@ end function
 function listxml(dbname as string = "", tbname as string = "") as boolean
 
     dim dummy   as string = ""
-    dim fieldnr as integer = 1
-    dim cnt     as integer = 1
+    dim fieldnr as integer = 0
+    dim cnt     as integer = 0
 
     ' setup header xml
     print "<?xml version='1.0' encoding='UTF-8'?>"
@@ -362,24 +363,25 @@ function listxml(dbname as string = "", tbname as string = "") as boolean
     ' count nr fields
     for i as integer = 0 to recnr
         with record
-            if instr(dummy, record.fieldname(i)) = 0  then
+            if instr(dummy, record.fieldname(i)) = 0 and record.fieldname(i) <> "" then
                 dummy += record.fieldname(i) + ","
                 fieldnr += 1
             end if
         end with
     next i
+    dummy = ""
 
     ' output fields and values to xml
     for i as integer = 0 to recnr
         if cnt = fieldnr then
             print space(len(dbname));"<" + tbname + ">"
-            cnt = 1
+            cnt = 0
         end if
         with record
             ' todo figure out why starting from 0 causes empty record
             record.fieldname(i) = replace(record.fieldname(i), " ", "_")
             ' sanitize xml values
-            record.fieldvalue(i) = replace(record.fieldvalue(i), " & ", " &amp; ")
+            record.fieldvalue(i) = replace(record.fieldvalue(i), "&", "&amp;")
             record.fieldvalue(i) = replace(record.fieldvalue(i), ">", "&gt;")
             record.fieldvalue(i) = replace(record.fieldvalue(i), "<", "&lt;")
             print space((len(dbname) + len(tbname)) + 1);"<" + record.fieldname(i) + ">" + record.fieldvalue(i) + "</" + record.fieldname(i) + ">"
@@ -392,9 +394,8 @@ function listxml(dbname as string = "", tbname as string = "") as boolean
     
     ' xml end
     print "</" + mid(dbname, 1, instr(dbname, ".") - 1) + ">"
-
     ' todo needs more accurate count for fields and records current workaround
-    logentry("notice", "xml export nr record(s) " & ((recnr + 1) / (fieldnr - 1)))
+    logentry("notice", "xml export nr record(s) " & fix(ubound(record.fieldname) / fieldnr))
 
     return true
 
@@ -409,7 +410,7 @@ function listrecords(needle as string = "") as boolean
     ' count nr fields
     for i as integer = 0 to recnr
         with record
-            if instr(dummy, record.fieldname(i)) = 0  then
+            if instr(dummy, record.fieldname(i)) = 0 and record.fieldname(i) <> "" then
                 dummy += record.fieldname(i) + ","
                 fieldnr += 1
             end if
@@ -428,7 +429,7 @@ function listrecords(needle as string = "") as boolean
             cnt = 1
         end if    
     next i
-    logentry("notice", "listrecords nr record(s) " & ((recnr + 1) / fieldnr))
+    logentry("notice", "listrecords nr record(s) " & fix(ubound(record.fieldname) / fieldnr))
 
     return true
 
@@ -481,6 +482,7 @@ end if
 dim i               as integer = 1
 dim runsqlquery     as boolean = false
 dim runlistrecords  as boolean = false
+dim runsqlexport    as boolean = false
 dim dummy           as string = ""
 
 ' parse if no commandline options are present
@@ -845,6 +847,8 @@ while i < __FB_ARGC__
             end select
         case 2
             select case true
+                case command(2) = "export"
+                    runsqlexport = true
                 case command(2) = "index"
                     if command(3) <> "" then
                         ' todo becomes an issue with larger tables 10MB and up
@@ -904,8 +908,8 @@ while i < __FB_ARGC__
                     logentry("notice", "imported sql query '" & command(2) & "'")
                 case instr(command(3), "json") > 0
                     sel = command(2)
-                    ' todo phase out by getting fieldlist and adding to query    
-                    if instr(sel, "select *") > 0 or instr(sel, "select*") > 0then
+/'                    ' todo phase out by getting fieldlist and adding to query    
+                    if instr(sel, "select *") > 0 or instr(sel, "select*") > 0 then
                         logentry("fatal", "export json does not support select * from please specify fieldnames")
                     end if
                     ' build json query
@@ -925,6 +929,7 @@ while i < __FB_ARGC__
                     Next
                     dummy += ") " + mid(sel, instr(sel, "from")) + ";"
                     sel = dummy
+'/
                     runsqlquery = true
                 case len(command(2)) > 0
                     sel = command(2)
@@ -934,6 +939,13 @@ while i < __FB_ARGC__
                     end if
             end select    
         case 3
+            ' parse out table name from select and pass as xml node or sql table name
+            dummy = mid(sel, instr(sel, " from ") + 6, instr(instr(sel, " from ") + 6, sel, " ") - (instr(sel, " from ") + 6))
+            dim dummy2 as string
+            ' filter out ext
+            dummy2 = left(command(1), instrrev(command(1), ".") - 1)
+            ' filter out preceding path if present
+            dummy2 = lcase(mid(dummy2, instrrev(dummy2, "\") + 1))
             select case true
                 case instr(command(3), "checkfile") > 0
                     if command(4) = "" then
@@ -949,12 +961,12 @@ while i < __FB_ARGC__
                 case instr(command(3), "json") > 0
                     listjson()
                 case instr(command(3), "sql") > 0
-                    listsql(command(1))
+                    ' todo check if table name is correct from query 
+                    ' rollback to filename if needed? 
+                    listsql(dummy)
                 case instr(command(3), "xml") > 0
-                    ' parse out table name from select and pass as xml node
-                    ' todo needs better handling
-                    dummy = mid(sel, instr(sel, " from ") + 6, instr(instr(sel, " from ") + 6, sel, " ") - (instr(sel, " from ") + 6))
-                    listxml(command(1), dummy)
+                    ' todo bom issue
+                    listxml(dummy2, dummy)
             end select                
     end select
 
@@ -972,6 +984,7 @@ while i < __FB_ARGC__
         If rc Then
             print sel
             Print "SQL error: ";*zErrMsg
+            logentry("error", "error executing query " & *zErrMsg)
             sqlite3_free(zErrMsg)
         End If
         recnr = recnr - 1
@@ -979,15 +992,78 @@ while i < __FB_ARGC__
         runsqlquery = false
     end if
 
+    if runsqlexport then
+        ' get tables db
+        fn = command(1)
+        rc = sqlite3_open(fn, @db)
+        recnr = 0
+        sel = "select name from sqlite_schema where type ='table' and name not like 'sqlite_%'"
+        rc = sqlite3_exec(db, sel, @sqlitegetrecord, 0, @zErrMsg)
+        redim table(ubound(record.fieldvalue)) as string
+        for j as integer = 0 to ubound(record.fieldvalue) - 1
+            table(j) = record.fieldvalue(j)
+        next
+
+        ' export create tables
+        select case command(3)
+            case "sql"
+                print "begin transaction;"
+                for j as integer = 0 to ubound(table) - 1
+                    sel = "SELECT sql FROM sqlite_master WHERE type='table' AND name='" + table(j) + "';"
+                    recnr = 0
+                    rc = sqlite3_exec(db, sel, @sqlitegetrecord, 0, @zErrMsg)
+
+                    for k as integer = 0 to recnr - 1
+                        with record
+                            if instr(record.fieldvalue(k), "CREATE TABLE") > 0 then
+                                record.fieldvalue(k) = replace(record.fieldvalue(k), "CREATE TABLE", "CREATE TABLE IF NOT EXISTS")
+                                record.fieldvalue(k) = replace(record.fieldvalue(k)," (", " (")
+                            end if
+                            print replace(record.fieldvalue(k), ",", ",")
+                        end with
+                    next k
+                    print ";"
+                next j
+        end select
+
+        ' export records
+        for j as integer = 0 to ubound(table) - 1
+            sel = "select * from " + table(j) 
+            recnr = 0
+            rc = sqlite3_exec(db, sel, @sqlitegetrecord, 0, @zErrMsg)
+            recnr = recnr - 1
+            select case command(3)
+                case "sql"
+                    listsql(table(j),,,false)
+                case "csv"
+                    listcsv(table(j))
+                ' todo issue export to sperate files?
+                case "xml"
+                    listxml(fn, table(j))
+                case else
+                    listrecords()
+            end select
+        next j
+        select case command(3)
+            case "sql"
+                print "commit;"
+        end select
+
+        sqlite3_close(db)
+        runsqlexport = false
+        ' todo better handeling of iterations while wend command line    
+        logentry("terminate", "operation " + command(2) + " duration " + exectime(exectimer, "stop"))
+    end if
+
     ' show results query
     if runlistrecords then
         listrecords()
         runlistrecords = false
-        logentry("notice", "query duration " + exectime(exectimer, "stop"))
     end if    
 
 	i += 1
-wend
+wend ' end commandline
+logentry("notice", "operation " + command(2) + " duration " + exectime(exectimer, "stop"))
 
 sqlite3_close(db)
 
