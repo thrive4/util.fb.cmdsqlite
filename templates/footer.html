@@ -54,6 +54,9 @@
        filterelement = "genre";
     }
     if (window.localStorage.getItem('tdelement') === '5') {
+       filterelement = "theme";
+    }
+    if (window.localStorage.getItem('tdelement') === '6') {
        filterelement = "year";
     }
     if (window.localStorage.getItem('tdelement') === null) {
@@ -67,8 +70,62 @@
     }
     document.getElementById("searchbox").innerHTML = text;
     document.getElementById("srinput").focus();
-    //window.alert(text);
 
+    // audio player routines todo needs optimization and further tweaks
+    const trElements = document.querySelectorAll('tr.trlight');
+    const audio      = document.getElementById('audio');
+    let currentIndex = 0;
+    let urls         = [];
+    let titles       = [];
+    let shuffle      = false;
+    audio.volume     = 0.5;
+
+    trElements.forEach(trElement => {
+        const onclickAttribute = trElement.getAttribute('onclick');
+        const urlMatch = onclickAttribute.match(/audioplay\('([^']+)'/);
+        if (urlMatch && urlMatch[1]) {
+            urls.push(urlMatch[1]);
+            const titleElement = trElement.querySelector('td:nth-child(3)');
+            titles.push(titleElement ? titleElement.textContent : 'Unknown Title');
+        }
+    });
+
+    let previousPicks = [];
+
+    function shuffleplay(set) {
+        if (previousPicks.length === set) {
+            // reset picks
+            previousPicks = [];
+        }
+
+        let shuffleindex;
+        do {
+            shuffleindex = Math.floor(Math.random() * set);
+        } while (previousPicks.includes(shuffleindex));
+        // ensure the pick is not a previous pick
+
+        previousPicks.push(shuffleindex);
+        console.log('pick: ', shuffleindex);
+        return shuffleindex;
+    }
+
+// Accessing previous picks
+//let mostRecentPick = previousPicks[currentIndex - 1]; // 5
+//let secondMostRecentPick = previousPicks[currentIndex - 2]; // 1
+//let thirdMostRecentPick = previousPicks[currentIndex - 3]; // 7
+
+
+    audio.addEventListener('ended', () => {
+        //console.log('Playback ended!');
+        if (currentIndex == trElements.length) {
+           currentIndex = 0;
+        }
+        // shuffle play
+        if (shuffle) {
+           currentIndex = shuffleplay(trElements.length);
+        }
+        audioplay(urls[currentIndex], trElements[currentIndex]);
+    });
 </script>
 </body>
 </html>

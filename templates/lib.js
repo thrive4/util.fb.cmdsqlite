@@ -93,11 +93,60 @@ function showDivs(n) {
 
 document.onkeydown = function (event) {
     var kbpressed = event.key;
+    // tricky overrides browser shortcut keys
+    //event.preventDefault();
+    // todo harmonize with audio end
+    if (currentIndex == trElements.length) {
+       currentIndex = 0;
+    }
+    // audio previous
     if(kbpressed == "ArrowLeft") {
         plusDivs(-1);
+        // shuffle play
+        //if (shuffle) {
+        //   currentIndex = previousPicks[currentIndex - 1];
+        //   audioplay(urls[currentIndex], trElements[currentIndex]);
+        //} else {
+            if (currentIndex >  1) {
+               audioplay(urls[currentIndex - 2], trElements[currentIndex - 2]);
+            }
+        //}
     }
+    // audio next
     if(kbpressed == "ArrowRight") {
         plusDivs(1);
+        // shuffle play
+        if (shuffle) {
+           currentIndex = shuffleplay(trElements.length);
+        }
+        audioplay(urls[currentIndex], trElements[currentIndex]);
+    }
+    // audio pause / play
+    if(kbpressed == "p") {
+        if (document.getElementById("audio").paused) {
+           document.getElementById("audio").play();
+        } else {
+           document.getElementById("audio").pause();
+        }
+    }
+    // audio seek
+    if(kbpressed == ".") {
+        document.getElementById("audio").currentTime = document.getElementById("audio").currentTime + 5;
+    }
+    if(kbpressed == ",") {
+        document.getElementById("audio").currentTime = document.getElementById("audio").currentTime - 5;
+    }
+    // audio volume
+    if(kbpressed == "+") {
+      console.log(document.getElementById("audio").volume );
+        if (document.getElementById("audio").volume < 0.9) {
+           document.getElementById("audio").volume = document.getElementById("audio").volume + 0.1;
+        }
+    }
+    if(kbpressed == "-") {
+        if (document.getElementById("audio").volume >= 0.1) {
+           document.getElementById("audio").volume = document.getElementById("audio").volume - 0.1;
+        }
     }
     if(kbpressed == "Escape") {
         if (modal.style == undefined) {
@@ -109,21 +158,22 @@ document.onkeydown = function (event) {
 
 // play audio source
 function audioplay(music, element) {
+    currentIndex = element.closest('tr').rowIndex -1;
+    //console.log(currentIndex);
+    console.log('Playing:', titles[element.closest('tr').rowIndex - 1]);
     document.getElementById("audio").pause();
     document.getElementById("audio").setAttribute('src', music);
     document.getElementById("audio").setAttribute('type', 'audio/mpeg');
     document.getElementById("audio").load();
     document.getElementById("audio").play();
-    document.getElementById("audio").volume = 0.5;
+    //document.getElementById("audio").volume = 0.5;
     document.getElementById("audio").style.visibility = "visible";
     // set or remove play button
     var data = document.getElementsByClassName("audiobutton");
-    // reset selected up and down
     for (i = 0; i < data.length; i++) {
            data[i].style.visibility = "hidden";
     }
     for (i = 0; i < data.length; i++) {
-        // toggle on row id
         if (i == element.closest('tr').rowIndex - 1) {
            data[i].style.visibility = "visible";
         }
@@ -132,6 +182,8 @@ function audioplay(music, element) {
     for (i = 0; i < data.length; i++) {
         data[i].style.visibility = "visible";
     }
+
+    currentIndex++;
 }
 
 // play youtube audio source
