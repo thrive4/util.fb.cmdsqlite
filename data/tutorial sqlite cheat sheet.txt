@@ -1,24 +1,25 @@
 Gotcha's and tips:
-! pending on tool do not forget to write changes
-! best practice *first* do a select to verify what and how
+
+- pending on tool do not forget to write changes
+- best practice *first* do a select to verify what and how
   the result of the change(s) to field values or tables is
   *then* do the update query
-! make a backup of the db before doing intricate changes to it
-! escape " with "" so "test" becomes ""test"" or use single quote '"test"'
-! Concatenate || (sqlite does not support concat)
-! lower() and upper() for altering results to lower or upper case
-' sqlite does *not* have a 'date' field type
-' internal date functions (including order by) *only*
-' works when the date-time stamp is in the format 'yyyy-mm-dd hh:mm:ss'
-! field is a old school way of refering to a column
-! try to prevent using space, quotes or comma's in field or table
-! names it will cause a lot of issues when querying or exporting
-! to json or csv
-! manual sqlite https://www.sqlitetutorial.net/sqlite-functions/
-! very handy tool https://sqlitebrowser.org/
-! querying tables with a hyphen / minus ex. table-name use 'table-name'
-! "select name, developer from 'game-with-hyphen'"
-! use vacuum; to compact a database ex. 'cmdsqlite.exe <database> "vacuum;"
+- make a backup of the db before doing intricate changes to it
+- escape " with "" so "test" becomes ""test"" or use single quote '"test"'
+- concatenate || (sqlite does not support concat)
+- lower() and upper() for altering results to lower or upper case
+- sqlite does *not* have a 'date' field type
+- internal date functions (including order by) *only*
+  works when the date-time stamp is in the format 'yyyy-mm-dd hh:mm:ss'
+- field is a old school way of refering to a column
+- try to prevent using space, quotes or comma's in field or table
+- names it will cause a lot of issues when querying or exporting to json or csv
+- querying tables with a hyphen / minus ex. table-name use 'table-name'
+  "select name, developer from 'game-with-hyphen'"
+  use vacuum; to compact a database ex. 'cmdsqlite.exe <database> "vacuum;"
+- manual sqlite https://www.sqlitetutorial.net/sqlite-functions/
+- very handy tool https://sqlitebrowser.org/
+____________________________________________________________________________
 
 show tables in database:
 select name from sqlite_schema where type ='table' and name not like 'sqlite_%'
@@ -32,11 +33,16 @@ select name, genre, icon from game where genre like 'ac%' order by name asc
 search with wildcard and 'escape' character % _ use:
 select name, cover from game where cover like "%\_%" escape '\';
 update game set cover = replace(cover, "_", " ") where cover like "%\_%" escape '\';
-
 ____________________________________________________________________________
 
 search with string function:
 select case when instr(name, "-") > 0 then name else "nop" end from game
+____________________________________________________________________________
+
+search with string function not matching:
+select * from "mytable" where instr(word, "-") = 0 and instr(word, "_") = 0
+numerical pattern:
+select * from data where label like 'movie%' and folder not glob '*[0-9][0-9][0-9][0-9]*'
 ____________________________________________________________________________
 
 search convert string to integer function:
@@ -162,7 +168,7 @@ select name, date_id from game where substr(date_id,7)||substr(date_id,4,2)||sub
 !note sqlite's date functions, and order by, only support yyyy-mm-dd (american notation)
 ____________________________________________________________________________
 
-| search on date standard format yyyy-mm-dd hh:mm:ss
+search on date standard format yyyy-mm-dd hh:mm:ss
 
 period between current date and 1 month in the past:
 select name, date_id from game where date_id > date('now','-1 month');
@@ -318,7 +324,6 @@ SELECT movies1920s50s.year, movies1920s50s.title, Count(extractinstance.doc) AS 
 
 CREATE VIRTUAL TABLE walkthrough_instance USING fts5vocab(walkthrough, instance);
 select file from walkthrough where rowid in (select doc from walkthrough_instance where term = 'mike')
-
 ____________________________________________________________________________
 
 scratchpad:

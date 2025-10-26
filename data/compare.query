@@ -1,0 +1,12 @@
+# compare two tables on artist, title
+#select artists, song, substr(date,1, 4) as year from wikidata_rejzeq limit 10
+#select name, title, year from music limit 10
+select music.name, wikidata_rejzeq.artists,
+ music.title, wikidata_rejzeq.song,
+ music.year, substr(wikidata_rejzeq.date,1, 4) as wikiyear
+ from wikidata_rejzeq
+ inner join music on wikidata_rejzeq.artists like music.name
+ and wikidata_rejzeq.song like music.title
+ and music.year is not wikiyear
+ limit 10
+

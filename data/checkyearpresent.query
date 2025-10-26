@@ -1,0 +1,1 @@
+select folder from data where label like 'movie%' and folder not glob '*[0-9][0-9][0-9][0-9]*'

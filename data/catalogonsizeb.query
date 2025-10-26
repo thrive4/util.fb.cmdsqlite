@@ -1,0 +1,2 @@
+select * from data where size > 100000000 and size < 2000000000 and folder like '% - %' 
+and folder not like '%update%' and label='games_store_03' order by date desc

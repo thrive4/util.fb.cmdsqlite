@@ -1,0 +1,8 @@
+# compare two tables on name
+select game_info.name, game.file,
+ game_info.developers, substr(game_info.released,1, 4) as release
+ from game_info
+ inner join game on game_info.name like game.file
+ limit 10
+
+

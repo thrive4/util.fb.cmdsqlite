@@ -1,0 +1,1 @@
+select * from "data" where label like '%games%' and folder not like '%update%' and size < 19524399057 order by date desc

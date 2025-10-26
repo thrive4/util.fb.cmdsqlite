@@ -9,5 +9,5 @@ select * from
   WHERE x.id = y.parent and y.fk = z.id and w.fk = z.id)
  where (description = 'online media sources' or description = 'online tools' or
         description = 'css' or description = 'svg' or
-        description = 'js' or description = 'fb' or
+        description = 'js' or description = 'fb' or description = 'webgl' or  
         description = 'sparql' or description = 'sql') and name IS NOT NULL
