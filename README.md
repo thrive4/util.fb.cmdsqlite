@@ -32,7 +32,7 @@ example: cmdsqlite.exe game.db "select name, developer from game" html
 exports query result to an html sortable table (using templates)
 
 - export to html(table) via folder
-example: cmdsqlite.exe g:datamp3classic *.mp3 html
+example: cmdsqlite.exe g:data\mp3\classic *.mp3 html
 exports all files and subsequent folders in 'g:datamp3classic'
 to an html sortable table (using templates)
 
@@ -44,20 +44,25 @@ select json_object('name', name, 'developer', developer) from game" json
 - export to csv
 example: cmdsqlite.exe game.db "select name, developer from game" csv
 
+- export all tables in database
+cmdsqlite.exe <database> export <exporttype>
+example: cmdsqlite.exe test.db export sql
+note: supports sql, csv and xml
+
 - export coverart in mp3
-example: cmdsqlite.exe g:datamp3classic *.mp3 cover
+example: cmdsqlite.exe g:data\mp3\classic *.mp3 cover
 exports cover art (.jpr or .png) in mp3 to folder cover and generates report
 with width / height, thumbnail info, etc of .jpg or .png if present
 
 - supplement exporttype: 'exif' as optional fourth parameter
-example: cmdsqlite.exe g:dataimagesparis *.jpg csv exif
+example: cmdsqlite.exe g:data\images\paris *.jpg csv exif
 generates report with
 width / height in .jpg or .png if present
 
-- example: cmdsqlite.exe g:dataimagesparis *.jpg html exif
+- example: cmdsqlite.exe g:data\images\paris *.jpg html exif
 filespec *.jpg creates imageviewer
 
-- example: cmdsqlite.exe g:datamp3classic *.mp3 html exif
+- example: cmdsqlite.exe g:data\mp3\classic *.mp3 html exif
 filespec *.mp3 gets tag info and creates audio link
 
 - supplement exporttype: 'web' as optional fourth parameter

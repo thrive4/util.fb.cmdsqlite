@@ -926,6 +926,19 @@ Function csv2sql(filename as string, tbname as string = "", tabletype as string 
     
 end function
 
+' hack remove spaces after colon : (is allowed according to json rfc ....)
+' todo expand beyond 3 spaces after colon
+function jsonclean(text as string) as string
+
+    text = replace(text, chr$(34) + ": ", chr$(34) + ":")
+    text = replace(text, chr$(34) + ":  ", chr$(34) + ":")
+    text = replace(text, chr$(34) + ":   ", chr$(34) + ":")
+    'text = replace(text, chr$(34) + ", ", chr$(34) + ",")
+
+    return text
+
+end function
+
 ' cheap json to sql export
 Function json2sql(filename as string, tbname as string = "", tabletype as string = "") As boolean
 
@@ -933,12 +946,12 @@ Function json2sql(filename as string, tbname as string = "", tabletype as string
     dim g       as long
     Dim cnt     As integer = 0
     Dim fieldnr As integer = 0
-    'dim recnr   as integer = 0
     dim chk     as boolean = false
     dim dbchk   as boolean = false
     Dim text    As String
     dim dummy   as string = ""
     dim dummy2  as string = ""    
+    dim nested  as boolean = false
 
     ' filter out ext
     tbname = left(filename, instrrev(filename, ".") - 1)
@@ -955,15 +968,55 @@ Function json2sql(filename as string, tbname as string = "", tabletype as string
         cnt = 0
         Do Until EOF( f )
             Line Input #f, text
+            text = jsonclean(text)
             cnt +=1
         loop
         recnr = cnt
         if cnt = 1 then
             g = freefile
             open exepath + "\temp.json" for output as #g
-                text = replace(text, "[", "[" + chr$(13) + chr$(10))
-                text = replace(text, "},", "}," + chr$(13) + chr$(10))
-                text = replace(text, "]", chr$(13) + chr$(10) + "]" + chr$(13) + chr$(10))
+                ' nested array one liner json variants ], and ]}
+                if instrrev(text, "[") + 1 > 0 and instrrev(text, ":{") = 0 then 
+                    text = replace(text, "{", chr$(13,10) + "{" + chr$(13,10))
+                    text = replace(text, "}", chr$(13,10) + "}" + chr$(13,10))
+                    text = replace(text, "[" + chr$(34), "[" + chr$(13,10) + chr$(34))
+                    text = replace(text, "],", chr$(13,10) + "],")
+                    text = replace(text, ",", "," + chr$(13,10))
+                    cnt = 2 ' toggle to pjson
+                    nested = true
+                end if
+                ' nested object one liner json variants
+                ' todo flattening needs to be done at this stage
+                if instrrev(text, ":{") > 0 then
+                    logentry ("fatal", "not supported: detected nested object in " + filename)
+                end if
+/'
+                if instrrev(text, ":{") > 0 then
+                    text = replace(text, "[{", "[" + chr$(13,10) + "{" + chr$(13,10))
+                    text = replace(text, ":{", ":" + chr$(34) + "empty" + chr$(34) + "," + chr$(13,10)) ' flatten
+                    ' variants
+                    if instrrev(text, "{") + 1 > 0 and instrrev(text, "},") > 0 then
+                        'text = replace(text, "},", chr$(13,10) + "},")
+                        text = replace(text, "},", chr$(13,10) + ",") ' flatten
+                    else 
+                        'text = replace(text, chr$(34) + "}", "}")
+                        'text = replace(text, "}", chr$(13,10) + "}")
+                        text = replace(text, "}", chr$(13,10) + "") ' flatten
+                    end if
+                    text = replace(text, ",", "," + chr$(13,10))
+                    'text = replace(text, ":", ": ")
+                    'text = replace(text, "}]", "}" + chr$(13,10) + "]")
+                    text = replace(text, "}]", "" + chr$(13,10) + "}" + chr$(13,10) + "]") ' flatten
+                    cnt = 2  ' toggle to pjson
+                    nested = true
+                end if
+'/
+                if (nested = false) then
+                    text = replace(text, "[", "[" + chr$(13,10))
+                    text = replace(text, "},", "}," + chr$(13,10))
+                    text = replace(text, "]", chr$(13,10) + "]" + chr$(13,10))
+                end if
+
                 print #g, text
             close(g)
             logentry ("notice", "converted one line json " + filename)
@@ -979,18 +1032,14 @@ Function json2sql(filename as string, tbname as string = "", tabletype as string
             recnr = 0
             Do Until EOF( f )
                 Line Input #f, text
-                cnt +=1
                 text = trim(text)
+                cnt +=1
+                ' multi line json but not pjson
                 if right(text, 2) = "}," and len(text) > 2 then
-                    ' multi line json but not pjson
                     goto skippjson
                     close(f)
                 else
-                    ' hack remove spaces after colon : (is allowed according to json rfc ....)
-                    ' todo expand beyond 3 spaces after colon
-                    text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
-                    text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
-                    text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
+                    text = jsonclean(text)
                     select case text
                         case "["
                             dummy = "[" + chr$(13,10)
@@ -1014,6 +1063,12 @@ Function json2sql(filename as string, tbname as string = "", tabletype as string
                             if instr(text, ":") = 0 and right(text, 1) = "," then
                                 text = replace(text, chr$(34), "")
                             end if
+                            ' todo figure out flatten nested object pjson
+                            if instr(text, ":{") > 0 then
+                            '    text = replace(text, chr$(34), "")
+                            '    text = replace(text, ":{", ":" + chr$(34) + "empty") ' flatten
+                                logentry ("fatal", "not supported: detected nested object in " + filename)
+                            end if
                             dummy += text
                     end select    
                 end if
@@ -1026,6 +1081,7 @@ Function json2sql(filename as string, tbname as string = "", tabletype as string
                 dummy2 += dummy
                 dummy = ""
             loop
+
             g = freefile
             open exepath + "\temp.json" for output as #g
                 print #g, dummy2
@@ -1038,8 +1094,8 @@ Function json2sql(filename as string, tbname as string = "", tabletype as string
 
 skippjson:
 
-    print "begin transaction;"
     ' create table defintion
+    print "begin transaction;"
     if tabletype = "fts" then
         print "create virtual table if not exists '" + tbname + "' using fts5("        
     else
@@ -1050,33 +1106,26 @@ skippjson:
     cnt = 0
     Do Until EOF( f )
        Line Input #f, text
-' patterns maybe use to set field type numeric
-' ":123 > ":"123
-' 123} > 123"}
-' 123, > 123",
+        text = jsonclean(text)
         ' replace null values
+        ' patterns maybe use to set field type numeric
+        ' ":123 > ":"123
+        ' 123} > 123"}
+        ' 123, > 123",
         if instr(text, chr$(34) + ":null") > 0 then
             text = replace(text, chr$(34) + ":null", chr$(34) + ":" + chr$(34) + "null" + chr$(34))
             logentry ("warning", "replaced null value" + text)
         end if
-        ' hack remove spaces after colon : (is allowed according to json rfc ....)
-        ' todo expand beyond 3 spaces after colon
-        text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
-        text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
-        text = replace(text, chr$(34) + ": ", chr$(34) + ":" + chr$(34))
         logentry ("warning", "replaced space after colon" + text)
         if cnt = 1 then
             ReDim As String ordinance(0)
             explode(text, chr$(34) + "," + chr$(34), ordinance())
             For x As Integer = 1 To UBound(ordinance)
-
-' catch last numerical field end record todo evaluate
-if instr(ordinance(x), chr$(34) + ":" + chr$(34)) = 0 then
-print ordinance(x)
-    ordinance(x) = replace(ordinance(x), ":", ":" + chr$(34)) 
-    ordinance(x) = replace(ordinance(x), "}", chr$(34) + "}") 
-end if
-
+                ' catch last numerical, boolean or null field end record todo evaluate
+                if instr(ordinance(x), chr$(34) + ":" + chr$(34)) = 0 then
+                    ordinance(x) = replace(ordinance(x), ":", ":" + chr$(34)) 
+                    ordinance(x) = replace(ordinance(x), "}", chr$(34) + "}") 
+                end if
                 dummy = lcase(mid(trim(ordinance(x)), 3, instr(trim(ordinance(x)), chr$(34) + ":" + chr$(34)) - 3))
                 if tabletype = "fts" then
                     ' rank is a reserved fieldname with fts5
@@ -1107,16 +1156,12 @@ end if
     cnt     = 0
     Do Until EOF( f )
        Line Input #f, text
+        text = jsonclean(text)
         ' replace null values json
         if instr(text, chr$(34) + ":null") > 0 then
             text = replace(text, chr$(34) + ":null", chr$(34) + ":" + chr$(34) + "null" + chr$(34))
             logentry ("warning", "replaced null value" + text)
         end if
-        ' hack remove spaces after colon : (is allowed according to json rfc ....)
-        ' todo expand beyond 3 spaces after colon
-        text = replace(text, chr$(34) + ": ", chr$(34) + ":")
-        text = replace(text, chr$(34) + ": ", chr$(34) + ":")
-        text = replace(text, chr$(34) + ": ", chr$(34) + ":")
         ' hack for pjson todo evaluate (dramatic speedbump)
         ' old location line 743 / 744 before writing temp file but slows down
         ' parsing quite substanialy
@@ -1131,12 +1176,11 @@ end if
                 logentry ("warning", "number of field(s) and value(s) do not match " + text)
             end if
             For x As Integer = 1 To UBound(ordinance)
-
-' catch last numerical field end record todo evaluate
-if instr(ordinance(x), chr$(34) + ":" + chr$(34)) = 0 then
-    ordinance(x) = replace(ordinance(x), ":", ":" + chr$(34)) 
-    ordinance(x) = replace(ordinance(x), "}", chr$(34) + "}") 
-end if
+                ' catch last numerical, boolean or null field end record todo evaluate
+                if instr(ordinance(x), chr$(34) + ":" + chr$(34)) = 0 then
+                    ordinance(x) = replace(ordinance(x), ":", ":" + chr$(34)) 
+                    ordinance(x) = replace(ordinance(x), "}", chr$(34) + "}") 
+                end if
                 ' unescape double quote if needed
                 ordinance(x) = replace(ordinance(x), "\" + chr$(34), chr$(34))
                 ordinance(x) = replace(ordinance(x), "'", "''")                        
@@ -1165,7 +1209,15 @@ end if
                 ' work around te restore null value
                 ' todo find better solution see listjson
                 dummy = replace(dummy, "'null'", "null")
-                Print "insert into '" + tbname + "' values (" + dummy + ");" 
+                ' remove trailing commas causes issues with nested array pjson
+                'dummy = replace(dummy, ",',", "',")
+                ' remove redundant double qoutes and commas todo evaluate this...
+                dummy = replace(dummy, ",','", "','")
+                dummy = replace(dummy, chr$(34) + "'", "'") 
+                dummy = replace(dummy, ",,'", "'")
+                dummy = replace(dummy, ",]'", "'")
+
+               Print "insert into '" + tbname + "' values (" + dummy + ");" 
             end if
         end if
         cnt += 1
@@ -1464,40 +1516,39 @@ function dir2file(folder as string, filterext as string, listtype as string = "s
                                     argv(4) = str(fsize)
                                     argv(5) = str(thumb)
                                 else
-if instr(filterext, ".mp3") > 0 and htmloutput = "web" then
-                                ' path(i) folder and drive
-                                getmp3baseinfo(path(i) + file)
-                                argc(0) = "artist"
-                                argc(1) = "title"
-                                argc(2) = "album"
-                                argc(3) = "year"
-                                argc(4) = "genre"
-                                'argc(5) = "theme"
-                                argc(5) = "file"
+                                    if instr(filterext, ".mp3") > 0 and htmloutput = "web" then
+                                        ' path(i) folder and drive
+                                        getmp3baseinfo(path(i) + file)
+                                        argc(0) = "artist"
+                                        argc(1) = "title"
+                                        argc(2) = "album"
+                                        argc(3) = "year"
+                                        argc(4) = "genre"
+                                        'argc(5) = "theme"
+                                        argc(5) = "file"
 
-                                argv(0) = taginfo(1)
-                                argv(1) = taginfo(2)
-                                argv(2) = taginfo(3)
-                                argv(3) = taginfo(4)
-                                argv(4) = taginfo(5)
-                                argv(5) = "audio/" + taginfo(6) + "/" + file
-                                'argv(5) = path(i) + file
+                                        argv(0) = taginfo(1)
+                                        argv(1) = taginfo(2)
+                                        argv(2) = taginfo(3)
+                                        argv(3) = taginfo(4)
+                                        argv(4) = taginfo(5)
+                                        argv(5) = "audio/" + taginfo(6) + "/" + file
+                                        'argv(5) = path(i) + file
+                                    else
+                                        argc(0) = "path"
+                                        argc(1) = "file"
+                                        argc(2) = "fileext"
+                                        argc(3) = "fsize"
+                                        argc(4) = "fdate"
+                                        argc(5) = "fattr"
 
-else
-                                    argc(0) = "path"
-                                    argc(1) = "file"
-                                    argc(2) = "fileext"
-                                    argc(3) = "fsize"
-                                    argc(4) = "fdate"
-                                    argc(5) = "fattr"
-
-                                    argv(0) = path(i)
-                                    argv(1) = file
-                                    argv(2) = fileext
-                                    argv(3) = str(fsize)
-                                    argv(4) = fdate
-                                    argv(5) = fattr
-end if
+                                        argv(0) = path(i)
+                                        argv(1) = file
+                                        argv(2) = fileext
+                                        argv(3) = str(fsize)
+                                        argv(4) = fdate
+                                        argv(5) = fattr
+                                    end if
                                 end if
                             end if
 
@@ -2042,11 +2093,11 @@ function dictonary(filename as string, wc as wordtally) as string
     dim text    as string = ""
     dim fieldnr as integer = 0
     dim         as long tmp, f
-    dim commonwords as string = "a, an, and, any, all, at, be, both, but, by, can, came, come, comes, did, do, does, doing, done, else, end, even, " + _
-                                "for, from, go, goes, gone, going, got, had, has, have, having, here, how, i, if, in, into, let, like, " + _ 
-                                "made, make, more, most, no, not, now, of, off, on, once, sure, that, the, their, them, then, they, there, these, thing, " + _ 
-                                "this, to, too, use, used, using, " + _
-                                "want, was, way, we, well, with, what, when, where, who, would, yes, you, your"
+    dim commonwords as string = "a, an, and, any, all, at, as, be, being, both, but, by, can, came, come, comes, did, do, does, doing, done, each, else, end, even, " + _
+                                "for, from, go, goes, gone, going, got, just, had, has, have, having, he, here, him, his, how, i, if, in, into, it, let, like, " + _ 
+                                "made, make, me, more, most, my, myself, no, not, now, of, off, on, once, our, she, so, sure, such, that, the, their, them, then, " + _ 
+                                "they, there, these, thing, this, though, through, to, too, use, used, using, " + _
+                                "want, was, way, we, well, with, what, when, where, while, which, who, would, why, yes, you, yours, yourself, tttt"
     wclinenr = 0
     ' isolate words
     tmp = readfromfile(filename)
@@ -2075,6 +2126,11 @@ function dictonary(filename as string, wc as wordtally) as string
                     ordinance(x) = replace(ordinance(x), chr$(34), "")
                     'print recnr & " " & ordinance(x)
                     wclinenr += 1
+                end if
+                ' filter out html
+                if instr(ordinance(x), "<") > 0 and instr(ordinance(x), ">") > 0 then
+                'if left(ordinance(x), 1) = "<" and right(ordinance(x), 1) = ">" then
+                    exit for
                 end if
                 redim preserve wc.word(0 to wclinenr)
                 redim preserve wc.count(0 to wclinenr)

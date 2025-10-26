@@ -1,7 +1,14 @@
+update v1.5 26/10/2025
+- added json escaping rules
+- added json nested array  (one deep) flattening with one line json
+- added filter out system related folders when using catalog
+- tweaks to .txt indexing
+- added spanish
+
 update v1.4 18/04/2025
-- fix correct table name in sql export with querie
+- fix correct table name in sql export with queries
 - fix correct filename as db name in xml main node export
-- fix xml sanitazion ampersand remove space
+- fix xml sanitation ampersand remove space
 - fix rec nr counter all list types csv, sql, json etc
 - fix incorrect field count empty fieldname could occure when getting fieldnames
 - updated and reformated help file
@@ -16,7 +23,7 @@ update v1.4 18/04/2025
    volume   down -
    seek     plus .
    seek     min ,
-- added primitive export database exports to seperate tables
+- added primitive export database exports to separate tables
   output to .sql, .csv and .xml
 - added web export option for media files mp3, jpg etc
   similar to html exif but adds a file column and

@@ -286,7 +286,7 @@ function listhtml(needle as string = "") as boolean
 
 end function
 
-function listjson(needle as string = "") as boolean
+function listjson(needle as string = "", listtype as string = "") as boolean
     dim dummy   as string = ""
     dim fieldnr as integer = 0
     dim cnt     as integer = 1
@@ -311,19 +311,25 @@ function listjson(needle as string = "") as boolean
                     print record.fieldvalue(i)
                 end if
             else
-                ' parse non sqlite output
-
-                ' todo implement rest of json escaping
-                'Backspace is replaced with \b
-                'Form feed is replaced with \f
-                'Newline is replaced with \n
-                'Carriage return is replaced with \r
-                'Tab is replaced with \t
-                'Backslash is replaced with \\
+                'backslash is replaced with \\
                 record.fieldvalue(i) = replace(record.fieldvalue(i), "\", "\\")
-                'Double quote is replaced with \"
+                'backspace is replaced with \b
+                record.fieldvalue(i) = replace(record.fieldvalue(i), chr$(8), "")
+                'form feed is replaced with \f
+                record.fieldvalue(i) = replace(record.fieldvalue(i), chr$(12), "")
+                'newline is replaced with \n
+                record.fieldvalue(i) = replace(record.fieldvalue(i), chr$(10), "\n")
+                'carriage return is replaced with \r
+                record.fieldvalue(i) = replace(record.fieldvalue(i), chr$(13), "\r")
+                'double quote is replaced with \"
                 record.fieldvalue(i) = replace(record.fieldvalue(i), chr$(34), "\" + chr$(34))
-
+                if listtype = "index" then
+                    'tab is removed we only need words
+                    record.fieldvalue(i) = replace(record.fieldvalue(i), chr$(9), "")
+                else
+                    'tab is replaced with \t
+                    record.fieldvalue(i) = replace(record.fieldvalue(i), chr$(9), "\t")
+                end if
                 if cnt = fieldnr then
                     dummy += chr$(34) + record.fieldname(i) + chr$(34) + ":" + chr$(34) + record.fieldvalue(i) + chr$(34) + "}," + chr$(13) + chr$(10)
                     cnt = 1
@@ -729,17 +735,22 @@ while i < __FB_ARGC__
                         ' data record(s)
                         recnr = 0
                         For x As Integer = 1 To UBound(ordinance)
-                            redim preserve record.fieldname (0 to recnr + 4)
-                            redim preserve record.fieldvalue(0 to recnr + 4)
-                            record.fieldname (recnr)     = "label"
-                            record.fieldvalue(recnr)     = getdrivelabel(left(command(1), 1) + ":\")
-                            record.fieldname (recnr + 1) = "folder"
-                            record.fieldvalue(recnr + 1) = ordinance(x)
-                            record.fieldname (recnr + 2) = "date"
-                            record.fieldvalue(recnr + 2) = format(FileDateTime(gettpath + ordinance(x)), "yyyy-mm-dd hh:mm")
-                            record.fieldname (recnr + 3) = "size"
-                            record.fieldvalue(recnr + 3) = str(foldersize(gettpath + ordinance(x)))
-                            recnr += 4
+                            ' filter out system related folders
+                            if instr(lcase(ordinance(x)), "$recycle") > 0 or instr(lcase(ordinance(x)), "system volume information") > 0 then
+                                ' nop
+                            else
+                                redim preserve record.fieldname (0 to recnr + 4)
+                                redim preserve record.fieldvalue(0 to recnr + 4)
+                                record.fieldname (recnr)     = "label"
+                                record.fieldvalue(recnr)     = getdrivelabel(left(command(1), 1) + ":\")
+                                record.fieldname (recnr + 1) = "folder"
+                                record.fieldvalue(recnr + 1) = ordinance(x)
+                                record.fieldname (recnr + 2) = "date"
+                                record.fieldvalue(recnr + 2) = format(FileDateTime(gettpath + ordinance(x)), "yyyy-mm-dd hh:mm")
+                                record.fieldname (recnr + 3) = "size"
+                                record.fieldvalue(recnr + 3) = str(foldersize(gettpath + ordinance(x)))
+                                recnr += 4
+                            end if
                         next x
                     end if
                     SELECT case command(3)
@@ -756,7 +767,11 @@ while i < __FB_ARGC__
                                 case "csv"
                                     listcsv()
                                 case "json"
-                                    listjson()
+                                    if command(4) = "index" then
+                                        listjson("", "index")
+                                    else
+                                        listjson()
+                                    end if
                                 case "sql"
 ' todo needs work with switches exif, fts, content and index
 'if (command(5) = "utf8" or command(5) = "utf16")
