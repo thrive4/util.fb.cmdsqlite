@@ -1,0 +1,8 @@
+# checkfile example
+# export file list to sql
+# cmdsqlite.exe g:\data\mp3\beatless *.mp3 sql > data\beat.sql
+# create db
+# cmdsqlite.exe data\beat.db data\beat.sql
+# check files
+# cmdsqlite.exe data\beat.db <query> checkfile file
+select concat(path, file) as file from beatless

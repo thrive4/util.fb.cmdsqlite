@@ -33,6 +33,10 @@ select name, genre, icon from game where genre like 'ac%' order by name asc
 search with wildcard and 'escape' character % _ use:
 select name, cover from game where cover like "%\_%" escape '\';
 update game set cover = replace(cover, "_", " ") where cover like "%\_%" escape '\';
+
+set field values lower case:
+select lower(developer) from game 
+update game set developer = lower(developer)
 ____________________________________________________________________________
 
 search with string function:
@@ -161,6 +165,13 @@ ____________________________________________________________________________
 search case insensitive (or use like):
 select name, executable, lastplayed from game where name = "agatha evil under the sun" and executable = "g:\games\agatha evil under the sun\euts.exe" COLLATE NOCASE
 update game set lastplayed = "18-07-2023 18:28:11" where name = "agatha evil under the sun" and executable = "g:\games\agatha evil under the sun\euts.exe" COLLATE NOCASE
+____________________________________________________________________________
+
+search similar values in two columns:
+select distinct category as value
+from docuold
+where category is not null
+  and lower(trim(category)) in (select lower(trim(subcategory)) from docuold);
 ____________________________________________________________________________
 
 search with european format dd-mm-yyyy:
@@ -327,6 +338,7 @@ select file from walkthrough where rowid in (select doc from walkthrough_instanc
 ____________________________________________________________________________
 
 scratchpad:
+cmdsqlite.exe f:\osd\conf\game.db "select executable, name from game where active='true' order by name" checkfile executable > chechkpath.txt
 select platform, executable, replace(executable, "d:\emu\gamecube\", "g:\games\wii\wii - ") as newexec from game where platform = "gamecube"
 update game set executable = replace(executable, "d:\emu\gamecube\", "g:\games\wii\wii - ") from game where platform = "gamecube"
 select platform, executable, replace(executable, ".lnk", "\change.iso""") as newexec from game where platform = "gamecube"

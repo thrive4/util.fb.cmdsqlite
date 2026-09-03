@@ -2,6 +2,7 @@
 # seamonkey <path>\seamonkey\profiles\places.sqlite
 #        or <drive>\Users\<user name>\AppData\Roaming\Mozilla\SeaMonkey\Profiles\<profile name>\places.sqlite
 # firefox   <drive>\Users\<user name>\AppData\Roaming\Mozilla\Firefox\Profiles\<profile name>\places.sqlite
+# example unix ./cmdsqlite /home/wah/.config/mozilla/firefox/dxj1pubg.default-release/places.sqlite data/bookmarksbytag.query
 select * from
  (SELECT x.title as description, lower(w.title) as name, 'false' as private, '<a href="' || z.url || '" target="_blank">' as href,
   datetime(round(x.dateAdded * 0.000001), 'unixepoch', 'localtime') as updated
