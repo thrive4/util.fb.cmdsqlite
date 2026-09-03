@@ -1,125 +1,125 @@
 ## cmdsqlite [![Github All Releases](https://img.shields.io/github/downloads/thrive4/util.fb.cmdsqlite/total.svg)]()
-basic import / export util written in freebasic with sqlite3
-supported file types or extensions:
+basic import / export util written in freebasic with sqlite3\
+supported file types or extensions:\
 .csv, .db, .json, .html, .sql, .sqlite, .xml
 
-Allows for export of data in sqlite database via sql query,
-or a folder plus filespec, to csv, json, html(table), sql and xml
+Allows for export of data in sqlite database via sql query,\
+or a folder plus filespec, to csv, json, html(table), sql and xml\
 and import of csv, json and xml via conversion to sql.
 
-Special support for .mp3 or .jpg this will extract the
-tag info and or create media links in the generated html table
-plus checkfile which verifies if file excists according to path
+Special support for .mp3 or .jpg this will extract the\
+tag info and or create media links in the generated html table\
+plus checkfile which verifies if file excists according to path\
 and file in specified field.
 
-See included help, or tutorial.txt in data folder, for more details
-cmdsqlite.exe /?  (or -h, -help, etc)
+See included help, or tutorial.txt in data folder, for more details\
+cmdsqlite.exe /?  (or -h, -help, etc)\
 Note: [folder] [filespec] folders are scanned recursively for filespec
 
 ## usage
-- **basic**
-cmdsqlite.exe [dbname] [query]
-example: cmdsqlite.exe game.db "select name from game where name like 'a%'"
-cmdsqlite.exe [folder] [filespec] [exporttype]
+- **basic**\
+cmdsqlite.exe [dbname] [query]\
+example: cmdsqlite.exe game.db "select name from game where name like 'a%'"\
+cmdsqlite.exe [folder] [filespec] [exporttype]\
 example: cmdsqlite.exe g:dataimagesclassic *.jpg csv
 
-- verfiy if file excists according to path and file in specified field
-[dbname] [query] checkfile [field name]
+- verfiy if file excists according to path and file in specified field\
+[dbname] [query] checkfile [field name]\
 checkfile returns -1 if the file exists, otherwise zero 0
 
-- export to html(table)
-example: cmdsqlite.exe game.db "select name, developer from game" html
+- export to html(table)\
+example: cmdsqlite.exe game.db "select name, developer from game" html\
 exports query result to an html sortable table (using templates)
 
-- export to html(table) via folder
-example: cmdsqlite.exe g:data\mp3\classic *.mp3 html
-exports all files and subsequent folders in 'g:datamp3classic'
+- export to html(table) via folder\
+example: cmdsqlite.exe g:data\mp3\classic *.mp3 html\
+exports all files and subsequent folders in 'g:datamp3classic'\
 to an html sortable table (using templates)
 
-- export to json
-example: cmdsqlite.exe game.db "select name, developer from game" json
-equivelent of:
+- export to json\
+example: cmdsqlite.exe game.db "select name, developer from game" json\
+equivelent of:\
 select json_object('name', name, 'developer', developer) from game" json
 
-- export to csv
+- export to csv\
 example: cmdsqlite.exe game.db "select name, developer from game" csv
 
-- export all tables in database
-cmdsqlite.exe <database> export <exporttype>
-example: cmdsqlite.exe test.db export sql
+- export all tables in database\
+cmdsqlite.exe <database> export <exporttype>\
+example: cmdsqlite.exe test.db export sql\
 note: supports sql and csv
 
-- export coverart in mp3
-example: cmdsqlite.exe g:data\mp3\classic *.mp3 cover
-exports cover art (.jpr or .png) in mp3 to folder cover and generates report
+- export coverart in mp3\
+example: cmdsqlite.exe g:data\mp3\classic *.mp3 cover\
+exports cover art (.jpr or .png) in mp3 to folder cover and generates report\
 with width / height, thumbnail info, etc of .jpg or .png if present
 
-- supplement exporttype: 'exif' as optional fourth parameter
-example: cmdsqlite.exe g:data\images\paris *.jpg csv exif
-generates report with
+- supplement exporttype: 'exif' as optional fourth parameter\
+example: cmdsqlite.exe g:data\images\paris *.jpg csv exif\
+generates report with\
 width / height in .jpg or .png if present
 
-- example: cmdsqlite.exe g:data\images\paris *.jpg html exif
+- example: cmdsqlite.exe g:data\images\paris *.jpg html exif\
 filespec *.jpg creates imageviewer
 
-- example: cmdsqlite.exe g:data\mp3\classic *.mp3 html exif
+- example: cmdsqlite.exe g:data\mp3\classic *.mp3 html exif\
 filespec *.mp3 gets tag info and creates audio link
 
-- supplement exporttype: 'web' as optional fourth parameter
-example: cmdsqlite.exe g:\data\mp3\classic *.mp3 json web
-filespec *.mp3 gets tag info and creates audio link
-similar to html exif but adds a file column and
+- supplement exporttype: 'web' as optional fourth parameter\
+example: cmdsqlite.exe g:\data\mp3\classic *.mp3 json web\
+filespec *.mp3 gets tag info and creates audio link\
+similar to html exif but adds a file column and\
 truncates file path assumes wwwroot/audio on webserver
 
-- import via sql of csv, json or xml
-cmdsqlite.exe [filename].csv
-creates a [filename].sql
-can be verified and the imported to sqlite database via:
+- import via sql of csv, json or xml\
+cmdsqlite.exe [filename].csv\
+creates a [filename].sql\
+can be verified and the imported to sqlite database via:\
 cmdsqlite.exe [dbname] [filename.sql]
 
-- basic info database and tables
-cmdsqlite.exe [dbname] showtables
-displays table names contained in [dbname]
-cmdsqlite.exe [dbname] showfields [tablename]
+- basic info database and tables\
+cmdsqlite.exe [dbname] showtables\
+displays table names contained in [dbname]\
+cmdsqlite.exe [dbname] showfields [tablename]\
 displays fieldnames contained in [tablename]
 
-- **catalog**
-catalog metric data of folder on drive
-table archive: label, capacity, space, foldersize
+- **catalog**\
+catalog metric data of folder on drive\
+table archive: label, capacity, space, foldersize\
 table data:    label, folder, data, size
 
- example: cmdsqlite.exe e:\ catalog sql
-          cmdsqlite.exe <path> catalog <exporttype = sql>
+ example: cmdsqlite.exe e:\ catalog sql\
+          cmdsqlite.exe <path> catalog <exporttype = sql>\
  the resulting sql can be imported into a database
 
- note: for practical reasons the drives label should be unique
-       both table defnitions for archive and data are created
-       twice, to initalize the database and once for removing
+ note: for practical reasons the drives label should be unique\
+       both table defnitions for archive and data are created\
+       twice, to initalize the database and once for removing\
        old data, if the drive was previously cataloged.
 
-- **convert**
-.mht files are converted to .txt and .html
-usage: <filename>.mht
-example: cmdsqlite.exe g:datatextdemo.mht
-creates a folder <filename> and extracts all files in the .mht
+- **convert**\
+.mht files are converted to .txt and .html\
+usage: <filename>.mht\
+example: cmdsqlite.exe g:datatextdemo.mht\
+creates a folder <filename> and extracts all files in the .mht\
 plus converts the main .html to a sperate wordwrapped text file.
 
 ## install
-open zip file and copy contents to preferd folder
+open zip file and copy contents to preferd folder\
 this application is **portable**.
 
 ## configuration
 options via conf/conf.ini
 
 ## requirements
-sqlite.dll 32-bit DLL (x86) for SQLite version 3.49.1
+sqlite.dll 32-bit DLL (x86) for SQLite version 3.49.1\
 https://www.sqlite.org/download.html
 ## performance (query and data size dependent)
-windows 7 / windows 10(1903)
-ram usage ~10MB / 10MB
-handles   ~30 / ~50
-threads   1 / 3
-cpu       ~1 (low) / ~2
+windows 7 / windows 10(1903)\
+ram usage ~10MB / 10MB\
+handles   ~30 / ~50\
+threads   1 / 3\
+cpu       ~1 (low) / ~2\
 tested on intel i5-6600T
 
 ## navigation
