@@ -15,22 +15,6 @@ Function replaceimageanchor(haystack As String, needle As String) As Integer
   Return count
 End Function
 
-Sub Split(array() As String, text As String, wrapchar As String = " ")
-    Dim As Integer bpos, epos, toks
-    Dim As String tok
- 
-    Redim array(toks)
- 
-    Do While Strptr(text)
-        epos = Instr(bpos + 1, text, wrapchar)
-        array(toks) = Mid(text, bpos + 1, epos - bpos - 1)
-        If epos = FALSE Then Exit Do      
-        toks += 1
-        Redim Preserve array(toks)
-        bpos = epos
-    Loop
-End Sub
-
 ' decode a base64 encoded file
 function mhtconvert(filename as string) as boolean
  
@@ -48,7 +32,7 @@ function mhtconvert(filename as string) as boolean
     dim chkhtml         as boolean = false
     dim linelength      as integer = 72
 
-    tempfolder = mid(filename, instrrev(filename, "\"))
+    tempfolder = mid(filename, instrrev(filename, pathchar))
     tempfolder = exepath + mid(tempfolder, 1, instrrev(tempfolder, ".") - 1)
 
     if mkdir(tempfolder) < 0  then
@@ -59,9 +43,9 @@ function mhtconvert(filename as string) as boolean
 
     msg64 = ""
     textitem = ""
-    orgname = mid(filename, instrrev(filename, "\") + 1)
+    orgname = mid(filename, instrrev(filename, pathchar) + 1)
     orgname = left(orgname, len(orgname) - 4) + ".html"
-    textfile = tempfolder + "\" + orgname
+    textfile = tempfolder + pathchar + orgname
 
     Open filename For input As 1
     open textfile for output as 3    
@@ -97,7 +81,7 @@ function mhtconvert(filename as string) as boolean
         if chkcontenttype then
             if instr(listitem, "Content-Location:") > 0 then
                 ' output decoded images to a temp dir
-                open tempfolder + "\" + mid(listitem, instrrev(listitem, "/") + 1) for output as 2
+                open tempfolder + pathchar + mid(listitem, instrrev(listitem, pathchar) + 1) for output as 2
             end if
             ' ghetto validation base64
             select case true

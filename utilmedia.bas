@@ -1,4 +1,4 @@
-csv         = "'filename', 'orientation', 'width', 'height', 'filesize', 'thumbnail'" + chr$(13) + chr$(10)
+csv         = "'filename', 'orientation', 'width', 'height', 'filesize', 'thumbnail'" + newline
 report      = ""
 thumbnail   = ""
 thumb       = 0
@@ -132,10 +132,10 @@ Function imagemetric(filename as string, buffer As String) As boolean
     end if
     ' attempt to write mp3 coverart to temp file
     if instr(1, buffer, "APIC") > 0 and instr(filename, ".mp3") > 0 then
-        temp = lcase(mid(filename, instrrev(filename, "\") + 1))
+        temp = lcase(mid(filename, instrrev(filename, pathchar) + 1))
         temp =  lcase(mid(temp, 1, instr(temp, ".") - 1))
         if ext <> "" then
-            image = exepath + "\cover\" + temp + ext
+            image = exepath + pathchar + "cover" + pathchar + temp + ext
             open image for Binary Access Write as #1
                 put #1, , chunk
             close #1
@@ -164,7 +164,7 @@ Function getmp3cover(filename As String, temp as string) As boolean
     report = report + "w: " & coverwidth
     report = report + " / h: " & coverheight
     report = report + " - " + filename
-    csv = csv + chr$(34) + filename + chr$(34) + "," & orientation & "," & coverwidth & "," & coverheight & "," & len(chunk) & "," & thumb & chr(13) + chr$(10)
+    csv = csv + chr$(34) + filename + chr$(34) + "," & orientation & "," & coverwidth & "," & coverheight & "," & len(chunk) & "," & thumb & newline
     print report
 
     return true
@@ -190,47 +190,5 @@ Function getimagemetric(filename As String) As boolean
 '    print report
 
     return true
-
-end function
-
-' parse .srt file
-function srt2sql(filename As String, srtData() As String, startTime() As String, endTime() As String, tbname as string = "", tabletype as string = "") as uinteger
-    Dim As UInteger x = 0 ' counter
-    Dim As String text
-    Dim As String dummy = ""
-    Dim As String startTimeStr, endTimeStr
-    
-    Dim As long f
-    f = FreeFile
-    Open filename For Input As #f
-
-    Do While Not EOF(f)
-        Line Input #f, text
-        If Len(text) > 0 Then
-            ' check start and end time
-            If InStr(text, " --> ") > 0 Then
-                ' split the line into start and end time
-                startTimeStr = Left(text, InStr(text, " --> ") - 1)
-                endTimeStr = Mid(text, InStr(text, " --> ") + 5)
-            Else
-                ' append the line to the current block
-                dummy &= text + "|"
-            End If
-        Else
-            ' end of a subtitle block, add it to the array
-            ReDim Preserve srtData(x) As String
-            ReDim Preserve startTime(x) As String
-            ReDim Preserve endTime(x) As String
-            srtData(x) = dummy
-            startTime(x) = startTimeStr
-            endTime(x) = endTimeStr
-            dummy = ""
-            x += 1
-        End If
-
-    Loop
-    Close #f
-
-    return x
 
 end function

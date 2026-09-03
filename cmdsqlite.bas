@@ -1,6 +1,9 @@
 ' import export various file formats csv, json, html, sql and xml
 ' to and from a sqlite database by thrive4 sept 2023
 ' more info see: https://github.com/thrive4/util.fb.cmdsqlite
+#ifdef __FB_WIN32__
+    #cmdline "app.rc"
+#endif
 
 declare function listrecords(needle as string = "") as boolean
 declare function  getimagemetric(filename As String) As boolean
@@ -15,14 +18,26 @@ common shared layout        as string
 common shared chunk         as string
 common shared csv           as string
 
+' setup playlist
+type lrec
+    as string  listname(any)
+    as string  listfile(any)
+    as string  listtype(any)
+    as integer listseqh(any)
+end type
+dim shared    listrec as lrec
+common shared listnr  as integer
+listnr = 0
+
 #include once "sqlite3.bi"
+#ifdef __FB_WIN32__
 #include once "windows.bi"
+#endif
 #include once "utilfile.bas"
 #include once "utilaudio.bas"
 #include once "utilmd5.bas"
 #include once "utilmedia.bas"
 #include once "utilmht.bas"
-#cmdline "app.rc"
 
 ' init sqlite
 Dim db      As sqlite3 Ptr
@@ -85,7 +100,7 @@ function listcsv(needle as string = "", checkfile as boolean = false) as boolean
         with record
             if instr(dummy, record.fieldname(i)) = 0 and record.fieldname(i) <> "" then
                 if record.fieldname(i) = needle and checkfile then
-                    dummy += "coverfound,"
+                    dummy += "found,"
                 end if
                 dummy += record.fieldname(i) + ","
                 fieldnr += 1
@@ -110,7 +125,7 @@ function listcsv(needle as string = "", checkfile as boolean = false) as boolean
                 end if 
             end if
             if cnt = fieldnr then
-                dummy += record.fieldvalue(i) + chr$(13) + chr$(10)
+                dummy += record.fieldvalue(i) + newline
                 cnt = 1
             else
                 dummy += record.fieldvalue(i) + ","
@@ -119,7 +134,7 @@ function listcsv(needle as string = "", checkfile as boolean = false) as boolean
         end with
     next i
     ' strip final carrige return
-    print mid(dummy, 1, len(dummy) - 2)
+    print mid(dummy, 1, len(dummy) - len(newline))
     ' todo needs more accurate count for fields and records current workaround
     logentry("notice", "csv export nr record(s) " & fix(ubound(record.fieldname) / fieldnr))
 
@@ -134,19 +149,19 @@ function listsql(needle as string = "", tabletype as string = "", bom as string 
     dim cnt     as integer = 1
 
     ' create table defintion
-    dummy = "begin transaction;" + chr$(13) + chr$(10)
+    dummy = "begin transaction;" + newline
     ' add encoding if needed
     select case bom
         case "utf16", "utf-16"
-            dummy += "pragma encoding = utf16;" + chr$(13) + chr$(10)
+            dummy += "pragma encoding = utf16;" + newline
         case "utf8", "utf-8"
-            dummy += "pragma encoding = utf8;" + chr$(13) + chr$(10)
+            dummy += "pragma encoding = utf8;"  + newline
         case else
             ' nop
     end select
 
     if tabletype = "fts" then
-        dummy += "create virtual table if not exists '" + needle + "' using fts5(" + chr$(13) + chr$(10)
+        dummy += "create virtual table if not exists '" + needle + "' using fts5(" + newline
     else
         dummy +=  "create table if not exists '" + needle + "' (" + chr$(13) + chr$(10)
     end if
@@ -160,7 +175,7 @@ function listsql(needle as string = "", tabletype as string = "", bom as string 
                     if lcase(trim(record.fieldname(i))) = "rank" then record.fieldname(i) = "ranked" end if
                     dummy += "'" + record.fieldname(i) + "'," + chr$(13) + chr$(10)
                 else
-                    dummy += "'" + record.fieldname(i) + "'" + space(20 - len(record.fieldname(i))) + "text," + chr$(13) + chr$(10)
+                    dummy += "'" + record.fieldname(i) + "'" + space(20 - len(record.fieldname(i))) + "text," + newline
                 end if
                 fieldnr += 1
             end if
@@ -177,7 +192,7 @@ function listsql(needle as string = "", tabletype as string = "", bom as string 
         with record
             record.fieldvalue(i) = replace(record.fieldvalue(i), "'", "''")
             if cnt = fieldnr then
-                dummy += "'" + record.fieldvalue(i) + "');" + chr$(13) + chr$(10)
+                dummy += "'" + record.fieldvalue(i) + "');" + newline
                 cnt = 1
             else
                 if cnt = 1 then
@@ -189,7 +204,7 @@ function listsql(needle as string = "", tabletype as string = "", bom as string 
         end with
     next i
     ' strip final carrige return
-    print mid(dummy, 1, len(dummy) - 2)
+    print mid(dummy, 1, len(dummy) - len(newline))
     if createtable then
         print "commit;"
     end if
@@ -210,7 +225,7 @@ function listhtml(needle as string = "") as boolean
     dim         as long tmp, f
 
     ' get template for body, css, and javacript    
-    tmp = readfromfile(exepath  + "\templates\head.html")
+    tmp = readfromfile(exepath  + pathchar + "templates" + pathchar + "head.html")
     Do Until EOF(tmp)
         Line Input #tmp, dummy
         print dummy    
@@ -271,7 +286,7 @@ function listhtml(needle as string = "") as boolean
     print "</table>"
 
     ' get template for footer, css, and javacript    
-    tmp = readfromfile(exepath  + "\templates\footer.html")
+    tmp = readfromfile(exepath  + pathchar + "templates" + pathchar + "footer.html")
     Do Until EOF(tmp)
         Line Input #tmp, dummy
         print dummy    
@@ -331,7 +346,7 @@ function listjson(needle as string = "", listtype as string = "") as boolean
                     record.fieldvalue(i) = replace(record.fieldvalue(i), chr$(9), "\t")
                 end if
                 if cnt = fieldnr then
-                    dummy += chr$(34) + record.fieldname(i) + chr$(34) + ":" + chr$(34) + record.fieldvalue(i) + chr$(34) + "}," + chr$(13) + chr$(10)
+                    dummy += chr$(34) + record.fieldname(i) + chr$(34) + ":" + chr$(34) + record.fieldvalue(i) + chr$(34) + "}," + newline
                     cnt = 1
                 else
                     if cnt = 1 then
@@ -344,7 +359,9 @@ function listjson(needle as string = "", listtype as string = "") as boolean
         end with
     next i
     if dummy <> "" then
-        print mid(dummy, 1, len(dummy) - 3)
+        'print mid(dummy, 1, len(dummy) - 3)
+		print mid(dummy, 1, len(dummy) - (len(newline) + 1))
+
     end if
     print "]"
     ' todo needs more accurate count for fields and records current workaround
@@ -362,7 +379,7 @@ function listxml(dbname as string = "", tbname as string = "") as boolean
 
     ' setup header xml
     print "<?xml version='1.0' encoding='UTF-8'?>"
-    dbname = replace(dbname, "\", "_")
+    dbname = replace(dbname, pathchar, "_")
     print "<" + mid(dbname, 1, instr(dbname, ".") - 1) + ">"
     print space(len(dbname));"<" + tbname + ">"
  
@@ -426,7 +443,7 @@ function listrecords(needle as string = "") as boolean
 
     for i as integer = 0 to recnr
         with record
-            print record.fieldname(i) + " = " + replace(record.fieldvalue(i), ",", "," + chr$(13) + chr$(10))
+            print record.fieldname(i) + " = " + replace(record.fieldvalue(i), ",", "," + newline)
             cnt += 1
         end with
         if cnt > fieldnr then
@@ -445,13 +462,14 @@ end function
 dim itm        as string
 dim inikey     as string
 dim inival     as string
-dim inifile    as string = exepath + "\conf\" + "conf.ini"
+dim inifile    as string = exepath + pathchar + "conf" + pathchar + "conf.ini"
 dim f          as long
 dim htmloutput as string
+dim appversion as string = "1.0"
 
 ' init mp3 cover
 dim nocover     as string = ""
-dim tempfolder  as string = exepath + "\cover"
+dim tempfolder  as string = exepath + pathchar + "cover"
 dim filename    as string
 dim itemnr      as integer = 0
 dim listitem    as string
@@ -470,6 +488,8 @@ else
             select case inikey
                 case "locale"
                     locale = inival
+				case "appversion"
+					appversion = inival
                 case "logtype"
                     logtype = inival
                 case "usecons"
@@ -482,6 +502,9 @@ else
     loop
     close(f)    
 end if    
+#ifdef __FB_LINUX__
+	exeversion = appversion
+#endif
 
 ' init basic commandline parser
 ' via https://www.freebasic.net/forum/viewtopic.php?t=31889 code by coderJeff
@@ -500,6 +523,14 @@ end select
 
 exectime(exectimer, "set")
 
+function chkdriveormount (drive as string) as boolean
+    #ifdef __FB_LINUX__
+        return (instr(drive, "/") > 0)
+    #else
+        return (instr(drive, ":") > 0)
+    #endif
+end function
+
 ' parse if commandline options are present
 while i < __FB_ARGC__
 	select case left(command(i), 1)
@@ -512,7 +543,7 @@ while i < __FB_ARGC__
                     print appname + " version " + exeversion
                     ' todo odd jumps to line 472 and resumes execution disregarding end
                     logentry("terminate", "normal temination ")
-                case else 
+                case else
                     logentry("fatal", "invalid switch '" & command(i) & "'")
             end select
         case "/"
@@ -520,8 +551,8 @@ while i < __FB_ARGC__
                 case "/?"
                     displayhelp(locale)
                     logentry("terminate", "normal temination ")
-                case else
-                    logentry("fatal", "invalid switch '" & command(i) & "'")
+                'case else
+                '    logentry("fatal", "invalid switch '" & command(i) & "'")
             end select
 	end select
     select case i
@@ -534,6 +565,8 @@ while i < __FB_ARGC__
                 end if
             end if
             select case true
+                case instr(command(1), ".query") > 0
+                    logentry("fatal", "please specify database first: <db> <query>.. '" & command(i) & "'")
                 case instr(command(1), ".sqlite") > 0
                     if command(2) = "" then
                         logentry("fatal", "missing query or option.. '" & command(i) & "'")
@@ -564,68 +597,12 @@ while i < __FB_ARGC__
                         mhtconvert(command(1))
                         wordwrap2file(command(1), swp)
                         logentry("terminate", "mhtconvert duration " + command(1) + " " + exectime(exectimer, "stop"))
-                ' eperimental todo better intergration with list and 2sql routines
                 case instr(command(1), ".srt") > 0
-                    ReDim srtData(0)   As String
-                    ReDim startTime(0) As String
-                    ReDim endTime(0)   As String
-                    dim tbname         as string
-
-                    srt2sql(command(1), srtData(), startTime(), endTime())
-                    'recnr = 0
-                    ' filter out ext
-                    tbname = left(command(1), instrrev(command(1), ".") - 1)
-                    ' filter out preceding path if present
-                    tbname = lcase(mid(tbname, instrrev(tbname, "\") + 1))
-                    ' filter out space
-                    tbname = replace(tbname, " ", "")    
-
-                    print "begin transaction;"
-                    ' create table defintion
-                    'if tabletype = "fts" then
-                    '    print "create virtual table if not exists '" + tbname + "' using fts5("        
-                    'else
-                        print "create table if not exists '" + tbname + "' ("
-                    'end if
-                    Print "'file'        text,"
-                    Print "'subtitlenr'  text,"
-                    Print "'starttime'   text,"
-                    Print "'endtime'     text,"
-                    Print "'text'        text"
-                    print ");"
-
-                    For x As Integer = 0 To ubound(srtData)
-                        'Print "Subtitle    " & (x + 1)
-                        'Print "Start time: " & startTime(x)
-                        'Print "End time:   " & endTime(x)
-                        'Print "text:       " & mid(srtData(x), instr(srtData(x), "|") + 1, len(srtData(x)) - 4)
-                        'Print
-                        srtData(x) = replace(srtData(x), "'", "''")
-                        srtData(x) = mid(srtData(x), instr(srtData(x), "|") + 1, len(srtData(x)) - 4)
-                        srtData(x) = replace(srtData(x), "|", "\n")
-                        Print "insert into '" + tbname + "' values ('" + command(1) + "','" + str(x + 1) + "','" & startTime(x)_ 
-                                          + "','" & endTime(x) + "','" + srtData(x) + "');" 
-
-                    /'
-                        ' srt record
-                        redim preserve record.fieldname (0 to recnr + 3)
-                        redim preserve record.fieldvalue(0 to recnr + 3)
-                        record.fieldname (recnr)     = "subtitlenr"
-                        record.fieldvalue(recnr)     = str(x + 1)
-                        record.fieldname (recnr + 1) = "starttime"
-                        record.fieldvalue(recnr + 1) = str(startTime(x))
-                        record.fieldname (recnr + 2) = "endtime"
-                        record.fieldvalue(recnr + 2) = str(endTime(x))
-                        record.fieldname (recnr + 3) = "text"
-                        record.fieldvalue(recnr + 3) = mid(srtData(x), instr(srtData(x), "|") + 1, len(srtData(x)) - 4)
-                        recnr += 3
-                    '/
-                    Next
-                    print "commit;"
-
-                    'listrecords()
-                    logentry("terminate", "srt2sql duration " + exectime(exectimer, "stop"))
-
+                        if len(command(2)) > 0 and command(2) <> "fts" then
+                            logentry("fatal", "please specify correct parameter ex. fts ... " + command(2))
+                        end if
+						srt2sql(command(1), command(2))
+						logentry("terminate", "srt2sql duration " + exectime(exectimer, "stop"))
                 ' eperimental todo use as text analysis for sqlite fts
                 case instr(command(1), ".txt") > 0
                         if len(command(2)) > 0 and (command(2) <> "index" and command(2) <> "text") then
@@ -638,7 +615,8 @@ while i < __FB_ARGC__
                             txt2sql(command(1), command(2), command(3))
                         end if
                         logentry("terminate", "txt2sql duration " + exectime(exectimer, "stop"))
-                case instr(command(1), ":") > 0
+                'case instr(command(1), ":") > 0
+				case chkdriveormount(command(1))
                     if checkpath(command(1)) = false then
                         logentry("fatal", "please specify a valid file or path.. '" & command(i) & "'")
                     end if
@@ -647,12 +625,15 @@ while i < __FB_ARGC__
                     end if
                     if command(2) = "folderinfo" then
                         print
-                        print "label         : "; getdrivelabel(left(command(1), 1) + ":\")
-                        Print "total capacity: "; getdrivestorage(left(command(1), 1) + ":\", "capacity"); " bytes " + convertbytesize(getdrivestorage(left(command(1), 1) + ":\", "capacity"))
-                        print "free space    : "; getdrivestorage(left(command(1), 1) + ":\", "space"); " bytes " +  convertbytesize(getdrivestorage(left(command(1), 1) + ":\", "space"))
+                        'print "label         : "; getdrivelabel(left(command(1), 1) + ":\")
+                        print "label         : "; getdrivelabel(command(1))
+                        'Print "total capacity: "; getdrivestorage(left(command(1), 1) + ":\", "capacity"); " bytes " + convertbytesize(getdrivestorage(left(command(1), 1) + ":\", "capacity"))
+                        'print "free space    : "; getdrivestorage(left(command(1), 1) + ":\", "space"); " bytes " +  convertbytesize(getdrivestorage(left(command(1), 1) + ":\", "space"))
+						Print "total capacity: "; getdrivestorage(command(1), "capacity"); " bytes " + convertbytesize(getdrivestorage(command(1), "capacity"))
+						Print "free space    : "; getdrivestorage(command(1), "space"); " bytes " 	 + convertbytesize(getdrivestorage(command(1), "space"))
                         print
                         ReDim As String ordinance(0)
-                        dim gettpath as string = command(1) + "\"
+                        dim gettpath as string = command(1) + pathchar
                         getfolders(gettpath + "*", ordinance())
                         dim offset as integer = len(arraylongestvalue(ordinance()))
                         For x As Integer = 1 To UBound(ordinance)
@@ -675,19 +656,22 @@ while i < __FB_ARGC__
                     ' todo move catalog to seperate function
                     if command(2) = "catalog" then
                         ReDim As String ordinance(0)
-                        dim gettpath as string = command(1) + "\"
+                        dim gettpath as string = command(1) + pathchar
                         getfolders(gettpath + "*", ordinance())
-
+						dim tmpdrivelabel as string = getdrivelabel(command(1))
                         ' metric record
                         recnr = 0
                         redim preserve record.fieldname (0 to 4)
                         redim preserve record.fieldvalue(0 to 4)
                         record.fieldname (recnr)     = "label"
-                        record.fieldvalue(recnr)     = getdrivelabel(left(command(1), 1) + ":\")
+                        'record.fieldvalue(recnr)     = getdrivelabel(left(command(1), 1) + ":\")
+                        record.fieldvalue(recnr)     = tmpdrivelabel
                         record.fieldname (recnr + 1) = "capacity"
-                        record.fieldvalue(recnr + 1) = str(getdrivestorage(left(command(1), 1) + ":\", "capacity"))
+                        'record.fieldvalue(recnr + 1) = str(getdrivestorage(left(command(1), 1) + ":\", "capacity"))
+                        record.fieldvalue(recnr + 1) = str(getdrivestorage(command(1), "capacity"))
                         record.fieldname (recnr + 2) = "space"
-                        record.fieldvalue(recnr + 2) = str(getdrivestorage(left(command(1), 1) + ":\", "space"))
+                        'record.fieldvalue(recnr + 2) = str(getdrivestorage(left(command(1), 1) + ":\", "space"))
+                        record.fieldvalue(recnr + 2) = str(getdrivestorage(command(1), "space"))
                         record.fieldname (recnr + 3) = "foldersize"
                         record.fieldvalue(recnr + 3) = str(foldersize(gettpath))
                         recnr += 3
@@ -695,12 +679,13 @@ while i < __FB_ARGC__
                             case "csv"
                                 listcsv()
                             case "json"
-                                print "{ " + chr$(34) + "archive" + chr$(34) + ":"
-                                listjson()
-                                print ", " + chr$(34) + "data" + chr$(34) + ":"
-                                listjson()
-                                print "}"
-                                logentry("terminate", "catalog json export")
+                                'print "{ " + chr$(34) + "archive" + chr$(34) + ":"
+                                'listjson()
+                                'print ", " + chr$(34) + "data" + chr$(34) + ":"
+                                'listjson()
+                                'print "}"
+                                'logentry("terminate", "catalog json export")
+                                logentry("fatal", "catalog json export not supported.. '" & command(i) & "'")
                             case "html"
                                 logentry("fatal", "catalog html export not supported.. '" & command(i) & "'")
                             case "sql"
@@ -713,7 +698,8 @@ while i < __FB_ARGC__
                                     print "'space'               integer,"
                                     print "'foldersize'          integer"
                                     print ");"
-                                    print "delete from archive where label='" & getdrivelabel(left(command(1), 1) + ":\") & "';"
+                                    'print "delete from archive where label='" & getdrivelabel(left(command(1), 1) + ":\") & "';"
+                                    print "delete from archive where label='" & tmpdrivelabel & "';"
                                 print "commit;"
                                 listsql("archive")
                                 print "begin transaction;"
@@ -724,12 +710,13 @@ while i < __FB_ARGC__
                                     print "'date'                text,"
                                     print "'size'                integer"
                                     print ");"
-                                    print "delete from data where label='" & getdrivelabel(left(command(1), 1) + ":\") & "';"
+                                    'print "delete from data where label='" & getdrivelabel(left(command(1), 1) + ":\") & "';"
+                                    print "delete from data where label='" & tmpdrivelabel & "';"
                                 print "commit;"
                             case "xml"
                                 ' todo adhere to xml element rules
                                 ' see https://stackoverflow.com/questions/442529/is-there-a-standard-naming-convention-for-xml-elements
-                                listxml(replace(replace(left(command(1),instrrev(command(1), "\") - 1), "\", "_"), ":", ""), "archive")
+                                listxml(replace(replace(left(command(1),instrrev(command(1), pathchar) - 1), pathchar, "_"), ":", ""), "archive")
                         end select
 
                         ' data record(s)
@@ -742,7 +729,8 @@ while i < __FB_ARGC__
                                 redim preserve record.fieldname (0 to recnr + 4)
                                 redim preserve record.fieldvalue(0 to recnr + 4)
                                 record.fieldname (recnr)     = "label"
-                                record.fieldvalue(recnr)     = getdrivelabel(left(command(1), 1) + ":\")
+                                'record.fieldvalue(recnr)     = getdrivelabel(left(command(1), 1) + ":\")
+                                record.fieldvalue(recnr)     = tmpdrivelabel
                                 record.fieldname (recnr + 1) = "folder"
                                 record.fieldvalue(recnr + 1) = ordinance(x)
                                 record.fieldname (recnr + 2) = "date"
@@ -761,7 +749,10 @@ while i < __FB_ARGC__
                             if command(2) = "catalog" then
                                 dummy = "data"
                             else
-                                dummy = replace(mid(command(1), instrrev(command(1), "\") + 1), " ", "")
+								' todo tackle trailing pathchar
+								dummy = command(1)
+								if right(dummy, 1) =  pathchar then dummy = mid(dummy,1,len(dummy) - 1) end if
+                                dummy = replace(mid(dummy, instrrev(dummy, pathchar) + 1), " ", "")
                             end if
                             select case command(3)
                                 case "csv"
@@ -789,7 +780,7 @@ while i < __FB_ARGC__
                                 case "xml"
                                     ' todo adhere to xml element rules
                                     ' see https://stackoverflow.com/questions/442529/is-there-a-standard-naming-convention-for-xml-elements
-                                    listxml(replace(replace(left(command(1),instrrev(command(1), "\") - 1), "\", "_"), ":", ""), dummy)
+                                    listxml(replace(replace(left(command(1),instrrev(command(1), pathchar) - 1), pathchar, "_"), ":", ""), dummy)
                             END select
                             logentry("notice", "dir2" + command(3) + " duration " + exectime(exectimer, "stop"))
                         case "cover"
@@ -806,13 +797,13 @@ while i < __FB_ARGC__
                                     open "cover.tmp" for input as #20
                                     Do Until EOF(20)
                                         Line Input #20, listitem
-                                        filename = lcase(mid(listitem, instrrev(listitem, "\") + 1))
+                                        filename = lcase(mid(listitem, instrrev(listitem, pathchar) + 1))
                                         filename =  lcase(mid(filename, 1, instrrev(filename, ".") - 1))
                                         if getmp3cover(listitem, filename) then
                                             itemnr += 1
                                         else
-                                            nocover = nocover + "no cover art found in " + filename + chr$(13) + chr$(10)
-                                            csv = csv + chr$(34) + command(1) + "\" + filename + chr$(34) + ",0,0" + chr$(13) + chr$(10)
+                                            nocover = nocover + "no cover art found in " + filename + newline
+                                            csv = csv + chr$(34) + command(1) + pathchar + filename + chr$(34) + ",0,0" + newline
                                         end if
                                         listitem = ""
                                         maxitems += 1
@@ -821,8 +812,8 @@ while i < __FB_ARGC__
                                     ' strip final carrige return csv
                                     csv = mid(csv, 1, len(csv) - 2)
                                     ' cleanup listplay files
-                                    delfile(exepath + "\cover.tmp")
-                                    delfile(exepath + "\cover.lst")
+                                    delfile(exepath + pathchar + "cover.tmp")
+                                    delfile(exepath + pathchar + "cover.lst")
                                 end if
                                 ' report to command line
                                 print nocover
@@ -854,11 +845,7 @@ while i < __FB_ARGC__
                     end select
                     logentry("terminate", "normal termination created " + command(3))
                 case else
-                    'if FileExists(command(1)) then
-                        logentry("fatal", "file not supported.. '" & command(i) & "'")
-                    'else
-                    '    logentry("fatal", "file not found or missing.. '" & command(i) & "'")
-                    'end if
+					logentry("fatal", "file not supported.. '" & command(i) & "'")
             end select
         case 2
             select case true
@@ -876,6 +863,9 @@ while i < __FB_ARGC__
                         logentry("fatal","please specify a valide table to index ...")
                     end if
                 case command(2) = "showtables"
+                    if FileExists(command(1)) = false then
+                        logentry("fatal", "file not found or missing.. '" & command(1) & "'")
+                    end if
                     sel = "select name from sqlite_schema where type ='table' and name not like 'sqlite_%'"
                     runsqlquery = true
                     runlistrecords = true
@@ -886,20 +876,29 @@ while i < __FB_ARGC__
                     sel = "select sql from sqlite_schema where name = '" + command(3) + "'"
                     runsqlquery = true
                     runlistrecords = true
-                 case instr(command(2), ".sql") > 0 and (instr(command(1), ".db") > 0 or instr(command(1), ".sqlite") > 0)
+                 case cbool(instr(command(2), ".sql") > 0) and cbool(instr(command(1), ".db") > 0 or instr(command(1), ".sqlite") > 0)
                     if FileExists(command(2)) = false then
                         logentry("fatal", "file not found or missing.. '" & command(2) & "'")
                     end if
-                    sel = ""    
+                    sel = ""
+                    wclinenr = 0
                     f = readfromfile(command(2))
                     Do Until EOF(f)
                         Line Input #f, itm
                         sel += itm + chr$(13) + chr$(10)
+                        ' todo phase out hack to count imported records
+                        if instr(itm, "insert into") then
+                            wclinenr += 1
+                        end if
                     loop
                     close(f)
                     runsqlquery = true
-                    logentry("notice", "imported sql '" & command(2) & "' added to or created " + command(1) + " duration " + exectime(exectimer, "stop"))
-                 case instr(command(2), ".query") > 0 and (instr(command(1), ".db") > 0 or instr(command(1), ".sqlite") > 0)
+                    logentry("hint", "imported sql '" & command(2) & "' added to or created " + command(1) + " duration " + exectime(exectimer, "stop"))
+				' nr of records
+				logentry("hint", "imported sql with " & wclinenr - 1 & " records from " & command(2))
+                wclinenr = 0
+
+                 case cbool(instr(command(2), ".query") > 0) and cbool(instr(command(1), ".db") > 0 or instr(command(1), ".sqlite") > 0)
                     if FileExists(command(2)) = false then
                         logentry("fatal", "file not found or missing.. '" & command(2) & "'")
                     end if
@@ -921,31 +920,6 @@ while i < __FB_ARGC__
                         runlistrecords = true
                     end if
                     logentry("notice", "imported sql query '" & command(2) & "'")
-                case instr(command(3), "json") > 0
-                    sel = command(2)
-/'                    ' todo phase out by getting fieldlist and adding to query    
-                    if instr(sel, "select *") > 0 or instr(sel, "select*") > 0 then
-                        logentry("fatal", "export json does not support select * from please specify fieldnames")
-                    end if
-                    ' build json query
-                    dummy = "select json_object("
-                    ReDim As String ordinance(0)
-                    explode(trim(mid(sel, 7, instr(sel, "from") - 7)), ",", ordinance())
-                    For x As Integer = 1 To UBound(ordinance)
-                        ' catch fieldname rename via as
-                        'if instr(ordinance(x), " as ") > 0 then
-                        'ordinance(x) = mid(ordinance(x), instr(ordinance(x), " as ") + 4)
-                        'end if
-                        if x <> UBound(ordinance) then
-                            dummy += "'" + trim(ordinance(x)) + "'," + trim(ordinance(x) + ",")
-                        else
-                            dummy += "'" + trim(ordinance(x)) + "'," + trim(ordinance(x))
-                        end if
-                    Next
-                    dummy += ") " + mid(sel, instr(sel, "from")) + ";"
-                    sel = dummy
-'/
-                    runsqlquery = true
                 case len(command(2)) > 0
                     sel = command(2)
                     runsqlquery = true
@@ -956,11 +930,6 @@ while i < __FB_ARGC__
         case 3
             ' parse out table name from select and pass as xml node or sql table name
             dummy = mid(sel, instr(sel, " from ") + 6, instr(instr(sel, " from ") + 6, sel, " ") - (instr(sel, " from ") + 6))
-            dim dummy2 as string
-            ' filter out ext
-            dummy2 = left(command(1), instrrev(command(1), ".") - 1)
-            ' filter out preceding path if present
-            dummy2 = lcase(mid(dummy2, instrrev(dummy2, "\") + 1))
             select case true
                 case instr(command(3), "checkfile") > 0
                     if command(4) = "" then
@@ -981,13 +950,23 @@ while i < __FB_ARGC__
                     listsql(dummy)
                 case instr(command(3), "xml") > 0
                     ' todo bom issue
+					dim dummy2 as string
+					' filter out ext
+					dummy2 = left(command(1), instrrev(command(1), ".") - 1)
+					' filter out preceding path if present
+					dummy2 = lcase(mid(dummy2, instrrev(dummy2, pathchar) + 1))
                     listxml(dummy2, dummy)
+				case else
+					logentry("fatal", "export type not supported.. '" & command(i) & "'")
             end select                
     end select
 
     if runsqlquery then
+		dim as integer createcnt = 0
+		dim as integer offsetcnt = 2
+		dim as integer errorscnt = 0	
         ' open db
-        fn = command(1)
+        fn = command(1)		
         rc = sqlite3_open(fn, @db)
         If rc Then
             sqlite3_close(db)
@@ -995,6 +974,41 @@ while i < __FB_ARGC__
         End If
         ' query db
         recnr = 0
+		' validate sql import
+        ' todo evaluate null issue can be tricky
+		if instr(sel, "create table") > 0 then
+			dummy = mid(sel, 1, instr(sel, ");"))
+			ReDim As String ordinance(0)
+			explode(dummy, ",", ordinance())
+			' nr of fields in create table
+			createcnt = UBound(ordinance)
+			For x As Integer = 1 To UBound(ordinance)
+				offsetcnt += 1
+			Next
+			if instr(sel, "insert into") > 0 then
+				'dummy = mid(sel, instr(sel, ");"))
+				dummy = mid(sel, instrrev(sel, ");"))
+				ReDim As String ordinance(0)
+				explode(dummy, ");", ordinance())
+				For x As Integer = 1 To UBound(ordinance)
+					' fake null
+					if instr(ordinance(x), ",null") > 0 then
+						ordinance(x) = replace(ordinance(x), ",null", ",'null'")
+					end if
+					ReDim As String ordinanceb(x)
+					explode(ordinance(x), "','", ordinanceb())
+					if createcnt <> UBound(ordinanceb) and UBound(ordinanceb) > 1 then
+						print mid(ordinance(x), 3)
+						print "deviation at ~ line " & (x + offsetcnt) & " values " & UBound(ordinanceb) & " expected " & createcnt
+						errorscnt += 1
+					end if					
+				Next
+			end if
+		end if	
+		if errorscnt > 0 then
+            logentry("fatal",  errorscnt & " error(s) in sql import file " & command(2))
+		end if	
+
         rc = sqlite3_exec(db, sel, @sqlitegetrecord, 0, @zErrMsg)
         If rc Then
             print sel
@@ -1018,7 +1032,6 @@ while i < __FB_ARGC__
         for j as integer = 0 to ubound(record.fieldvalue) - 1
             table(j) = record.fieldvalue(j)
         next
-
         ' export create tables
         select case command(3)
             case "sql"
@@ -1053,8 +1066,8 @@ while i < __FB_ARGC__
                 case "csv"
                     listcsv(table(j))
                 ' todo issue export to sperate files?
-                case "xml"
-                    listxml(fn, table(j))
+                'case "xml"
+                '    listxml(fn, table(j))
                 case else
                     listrecords()
             end select

@@ -1,3 +1,46 @@
+update v1.6 03/09/2025
+- refactored code allowing linux / debian 64 bit compilation
+- refactored code allowing windows 64 bit compilation
+- sunset 32bits support windows
+- updated sqlite3.dll v3.49.1 to v3.53.3.0
+- added .sqlite support same as .db
+- added sql import validation first draft still a bit tricky
+  gives approximate line number and insert line which errors
+- added various data sources in data folder
+- refactor srt2sql imports .srt subtitle files
+- fixed many small bugs import export related
+- rewrite xml2sql function now deals with xml
+  with multiline values and variable fields per record
+  sample variable fields:
+    <country>
+        <code>fi</code>
+        <handle>finland</handle>
+        <continent>europe</continent>
+        <iso>246</iso>
+        <name>Finland</name>
+    </country>
+    <country>
+        <code>fr</code>
+        <handle>france</handle>
+        <continent>europe</continent>
+        <alt>Francaise</alt>
+        <iso>250</iso>
+        <name>France</name>
+    </country>
+  note the alt node in the record france
+  sample multi line field value:
+   <book id="bk103">
+      <author>Corets, Eva</author>
+      <title>Maeve Ascendant</title>
+      <genre>Fantasy</genre>
+      <price>5.95</price>
+      <publish_date>2000-11-17</publish_date>
+      <description>After the collapse of a nanotechnology
+      society in England, the young survivors lay the
+      foundation for a new society.</description>
+   </book>
+  note the multi line value in node description
+
 update v1.5 26/10/2025
 - added json escaping rules
 - added json nested array  (one deep) flattening with one line json

@@ -1,7 +1,7 @@
 ## cmdsqlite [![Github All Releases](https://img.shields.io/github/downloads/thrive4/util.fb.cmdsqlite/total.svg)]()
 basic import / export util written in freebasic with sqlite3
 supported file types or extensions:
-.csv, .db, .json, .html, .sql, .xml
+.csv, .db, .json, .html, .sql, .sqlite, .xml
 
 Allows for export of data in sqlite database via sql query,
 or a folder plus filespec, to csv, json, html(table), sql and xml
@@ -47,7 +47,7 @@ example: cmdsqlite.exe game.db "select name, developer from game" csv
 - export all tables in database
 cmdsqlite.exe <database> export <exporttype>
 example: cmdsqlite.exe test.db export sql
-note: supports sql, csv and xml
+note: supports sql and csv
 
 - export coverart in mp3
 example: cmdsqlite.exe g:data\mp3\classic *.mp3 cover
@@ -128,6 +128,7 @@ cli keyboard
 ## example report output export coverart mp3
 
 after scanning a folder:
+```
 scanning and exporting mp3 covers(s)....
 no cover found in james ingram and michael mcdonald - yah mo b there
 no cover found in julian lennon - too late for goodbyes
@@ -144,9 +145,14 @@ coverart not square w: 320 / h: 180 - g:\data\mp3\70s schmaltz\andrew gold - nev
 ...
 finished scanning 65 file(s)
 exported 54 covers(s) to f:\dev\freebasic\projects\mp3\cover
+```
 
 ## special thanks
-tips on commandline parsing via:
+tips on commandline parsing via:\
 https://www.freebasic.net/forum/viewtopic.php?t=31889 code by coderJeff
-data set vgsales via:
+
+kuan-hsu for poseidonFB works well on linux (pop os)\
+https://github.com/kuan-hsu/poseidonFB
+
+data set vgsales via:\
 https://gist.github.com/zhonglism/f146a9423e2c975de8d03c26451f841e
